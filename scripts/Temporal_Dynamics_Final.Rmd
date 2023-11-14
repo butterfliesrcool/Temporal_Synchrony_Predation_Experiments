@@ -1,0 +1,849 @@
+---
+title: "Temporal Dynamics of Predator Learning in a Batesian Mimicry Complex"
+author: "Abby Robinson"
+date: "12/16/2022"
+output: html_document
+---
+# Getting Ready 
+
+## Packages
+
+The following packages were used for this statistical analysis 
+
+```{r}
+library(curl)
+library(ggplot2)
+library(lme4)
+library(DHARMa)
+library(emmeans)
+library("glmmTMB")
+library(patchwork)
+library(performance)
+library(ggmap)
+library(googleway)
+library("rstudioapi")
+library(ggpattern)
+library(tidyverse)
+```
+
+We used the "DHARMa" package to check residuals and model assumptions 
+```{r}
+vignette("DHARMa", package="DHARMa") ### Useful information for checking residuals/ model assumptions 
+```
+
+## Assumptions for Generalized Linear Mixed Models (GLMMs) with Poisson Distribution
+
+1. The variance is equal to the mean. Overdispersion can occur when your variance is much higher than your mean. DHARMa provides effective tools to quantify overdispersion, and when it is present, you would want to consider quasi-Poisson, negative binomial, or zero-inflated models (see CRAN package link above). 
+2. The response variable is non-negative integer data. 
+3. The responses are independent from one another. 
+4. The responses occur over fixed time or space. 
+
+# [1] Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments, compared to the undefended facsimiles of the control?
+
+In order to address how the time delay will affect attack rates on the mimics, we first need to show that our training experiment was effective and birds learned to avoid facsimiles of battus philenor. 
+
+I hypothesize that birds will learn to avoid the chemically defended models faster than the control, and that we will therefore see lower attack rates on the model in the last three days of the experiment compared to the control. 
+
+Because this initial question of the project is focused on the training phase of the experiment, each of the three time-delayed experiments (four, two, one) are essentially identical replicates of each other, and therefore this data can be pooled to increase power. 
+
+## Prepping Data 
+
+Load data from GitHub repo using "curl()" command 
+
+```{r}
+m <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_Model_Data.csv")
+model <- read.csv(m, header = TRUE, sep = ",")
+head(model)
+
+# count data looses some information that binomial data would provide, but binomial data would likely not work here due to the low overall attack rates 
+# survival analysis likely didn't work with this data because attack rates are too low for this data to be analyzed as binomial data 
+```
+
+Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
+
+```{r}
+# make field.day variable factor
+class(model$field.day) 
+model$field.day <- as.factor(model$field.day)
+class(model$field.day)
+
+# make experiment.day variable factor
+class(model$experiment.day) 
+model$experiment.day <- as.factor(model$experiment.day)
+class(model$experiment.day)
+
+# make site variable factor 
+class(model$field.site)
+model$field.site <- as.factor(model$field.site)
+class(model$field.site)
+
+# make sure attack variable is integer 
+class(model$attacks) 
+
+# make species variable factor 
+class(model$species)
+model$species <- as.factor(model$species)
+class(model$species)
+
+# make treatment variable factor 
+class(model$treatment)
+model$treatment <- as.factor(model$treatment)
+class(model$treatment)
+```
+
+## Visualize Data 
+
+```{r}
+# histogram of attacks 
+hist(model$attacks)  #concerns about zero inflation based on histogram? 
+
+# check variance and mean to assess for over /  under - dispersion 
+var(model$attacks)
+mean(model$attacks) # variance is greater than mean, which indicates that over-dispersion might be an issue 
+```
+
+```{r}
+# summarizing attacks 
+aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
+
+aggregate(x= model$attacks, by= list(model$treatment), FUN=sum)
+```
+
+## Model 1
+
+```{r}
+mod1 <- glmmTMB(attacks ~ species*experiment.day + species*treatment + (1|field.site/field.day), data=model,ziformula=~1,family=poisson) 
+summary(mod1)
+check_singularity(mod1) 
+
+# no singularity issues 
+# no convergence issues 
+# include experiment.day as a covariate! 
+```
+
+Check residuals with "DHARMa" package 
+
+```{r}
+packageVersion("DHARMa")
+mod1simulation <- simulateResiduals(fittedModel = mod1, plot = T)
+
+testUniformity(mod1simulation) 
+testOutliers(mod1simulation)
+testDispersion(mod1simulation) 
+testZeroInflation(mod1simulation) 
+```
+
+Post Hoc test allows us to compare attacks on each experimental day for each species 
+
+```{r}
+post.hoc1 <- emmeans(mod1, pairwise ~ experiment.day|species) 
+post.hoc1
+
+emmeans(mod1, pairwise ~ treatment|species) #no significant differences between treatments during the learning phase 
+```
+
+# [2] When is limenitis protected from predation (four-week exp, two-week exp, one-week exp, or simultaneous exp)?
+
+Now that we have established that the bird community at the Quabbin Reservoir did learn to avoid facsimiles of the model species Battus philenor, we can explore how the birds responded to the mimics. In each location where birds learned to avoin the model, we returned at different times (4 weeks later, 2 weeks later, one week later, or simultaneously (zero weeks)), presented the mimic and the control, and examined how birds responded to the mimic under different temporal delay treatments. 
+
+Previous lab work and models of pavlovian learning suggest that predators should be able to retain memory of negative stimuli for long periods of time after that negative stimulus is removed. Here, we are examining how long after a negative stimulus is removed predators in natural environments retain memory of that negative model stimulus & avoid mimics. 
+
+## Prepping Data 
+
+Load data file from GitHub repo
+
+```{r}
+c <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_Mimic_Data.csv")
+mimic <- read.csv(c, header = TRUE, sep = ",")
+head(mimic)
+```
+
+Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
+
+```{r}
+# make experimental.day variable factor 
+class(mimic$experiment.day) 
+mimic$experiment.day <- as.factor(mimic$experiment.day)
+class(mimic$experiment.day)
+
+# make field.day variable factor
+class(mimic$field.day) 
+mimic$field.day <- as.factor(mimic$field.day)
+class(mimic$field.day)
+
+# make site variable factor 
+class(mimic$field.site)
+mimic$field.site <- as.factor(mimic$field.site)
+class(mimic$field.site)
+
+# make sure attack variable is integer 
+class(mimic$attacks) # only thing that should be an integer 
+
+# make species variable factor 
+class(mimic$species)
+mimic$species <- as.factor(mimic$species)
+class(mimic$species)
+
+# make treatment variable factor 
+class(mimic$treatment)
+mimic$treatment <- as.factor(mimic$treatment)
+class(mimic$treatment)
+```
+
+## Visualize Data 
+
+```{r}
+# histogram of attacks 
+hist(mimic$attacks)  #concerns about zero inflation based on histogram? 
+
+# check variance and mean to assess for over /  under - dispersion 
+var(mimic$attacks)
+mean(mimic$attacks) # variance is greater than mean, which indicates that over-dispersion might be an issue 
+```
+
+## Model 2
+
+Model 2 includes field.day as a random effects variable, but this model results in singularity issues 
+
+```{r}
+mod2 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site) + (1|field.day), data=mimic,ziformula=~1,family=poisson) 
+summary(mod2)
+check_singularity(mod2) 
+
+# singularity issues, likely due to the field.day random effect variable 
+```
+
+```{r}
+mod2simulation <- simulateResiduals(fittedModel = mod2, plot = T)
+testUniformity(mod2simulation) 
+testOutliers(mod2simulation)
+testDispersion(mod2simulation) 
+testZeroInflation(mod2simulation) 
+```
+
+## Model 3 
+
+Model 3 does not include field.day as a random effect variable, which removes the singularity issues found in the previous model 
+
+```{r}
+mod3 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site), data=mimic,ziformula=~1,family=poisson) 
+summary(mod3)
+check_singularity(mod3) 
+
+#removing the field.day random effect variable removes the singularity issues, but do we want to do that?
+```
+
+```{r}
+mod3simulation <- simulateResiduals(fittedModel = mod3, plot = T)
+testUniformity(mod3simulation) 
+testOutliers(mod3simulation)
+testDispersion(mod3simulation) 
+testZeroInflation(mod3simulation) 
+```
+
+```{r}
+post.hoc2 <- emmeans(mod2, pairwise ~ species|treatment) 
+#there is a significant difference in the attack rates on junonia and limenitis only in the zero week treatment (simultaneous presentation)
+post.hoc2
+
+post.hoc3 <- emmeans(mod3, pairwise ~ experiment.day|species)
+# there are no significant differences in attacks on the mimic (limenitis) across the 4-day experiment. There is a significant difference between days 1 and 3 for the control (junonia), likely due to weather 
+post.hoc3 
+
+post.hoc4 <- emmeans(mod2, pairwise ~ species|treatment) 
+post.hoc5 <- emmeans(mod2, pairwise ~ experiment.day|species)
+#results are the same for the model with singularity issues that includes field.day as a random effect variable 
+post.hoc4
+post.hoc5
+```
+
+## Part [1] Figures
+
+## Visualizing attack data 
+
+```{r}
+length(model$attacks)
+```
+
+```{r}
+# Summary of attacks on facsimiles during learning  phase 
+aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
+```
+
+## Confidence Intervals 
+
+```{r}
+# subset model data (battus philenor)
+b <- subset(model, species == "battus", drop = FALSE)
+
+b_attacked <- aggregate(x=b$attacks, by = list(b$species, b$experiment.day), FUN=sum)
+b_attacked
+```
+
+```{r}
+# subset control data (junonia coenia)
+j <- subset(model, species == "junonia", drop = FALSE)
+j_attacked <- aggregate(x=j$attacks, by = list(j$species, j$experiment.day), FUN=sum)
+j_attacked
+```
+
+```{r}
+# subset each day within each species to calculate a confidence interval for the count total of facsimiles attacked  each experimental day 
+
+  # battus philenor (model)
+b1 <- subset(b, experiment.day == "1", drop = FALSE)
+b2 <- subset(b, experiment.day == "2", drop = FALSE)
+b3 <- subset(b, experiment.day == "3", drop = FALSE)
+b4 <- subset(b, experiment.day == "4", drop = FALSE)
+
+  # junonia coenia (control)
+j1 <- subset(j, experiment.day == "1", drop = FALSE)
+j2 <- subset(j, experiment.day == "2", drop = FALSE)
+j3 <- subset(j, experiment.day == "3", drop = FALSE)
+j4 <- subset(j, experiment.day == "4", drop = FALSE)
+
+# calculate standard deviation of attacked proportion 
+
+  # battus philenor (model)
+b1.sd <- sd(b1$attacks)
+b2.sd <- sd(b2$attacks)
+b3.sd <- sd(b3$attacks)
+b4.sd <- sd(b4$attacks)
+
+  # junonia coenia (control)
+j1.sd <- sd(j1$attacks)
+j2.sd <- sd(j2$attacks)
+j3.sd <- sd(j3$attacks)
+j4.sd <- sd(j4$attacks)
+```
+
+
+```{r}
+# create a new data frame with the experimental day info, attack proportion, and confidence interval for each species 
+
+  # battus philenor (model)
+battus_plot_data <- data.frame(
+  Day      = b_attacked$Group.2,
+  Attacked = b_attacked$x,
+  SD       = c(b1.sd, b2.sd, b3.sd, b4.sd)
+)
+battus_plot_data
+
+  # junonia coenia (control)
+junonia_plot_data <- data.frame(
+  Day      = j_attacked$Group.2,
+  Attacked = j_attacked$x,
+  SD       = c(j1.sd, j2.sd, j3.sd, j4.sd)
+)
+junonia_plot_data
+```
+
+## Battus philenor Figure 
+
+```{r}
+p_value <- tibble(
+  x = c("1", "1", "3", "3"),
+  y = c(24, 25, 25, 23)
+)
+
+p_value2 <- tibble(
+  x = c("2", "2", "4", "4"),
+  y = c(22, 23, 23, 22)
+)
+
+b.plot <- ggplot(battus_plot_data) + 
+
+  geom_bar( aes(Day, Attacked), stat="identity", fill="grey70", width=1) + 
+  ylim(0,25) +  xlab("Day") +  ylab("Facsimiles Attacked") + 
+  geom_text(aes(x=Day, y=Attacked, label = Attacked), vjust = -1) +
+  ggtitle(expression(bolditalic("Battus philenor"))) + 
+  geom_errorbar( aes(x=Day, ymin=Attacked-SD, ymax=Attacked+SD), width=0.2, size=0.7) + 
+  theme_classic() + 
+  theme( aspect.ratio = 4/3, 
+         plot.title = element_text(hjust = 0.5, size=17), 
+         axis.title = element_text(size = 15), 
+         axis.text = element_text(size = 15)) + 
+  geom_line(data = p_value, 
+            aes(x = x, y = y, group = 1)) +
+  geom_line(data = p_value2, 
+            aes(x = x, y = y, group = 1)) 
+b.plot 
+```
+
+## Junonia coenia Figure 
+
+```{r}
+j.plot <- ggplot(junonia_plot_data) +
+     geom_bar( aes(Day, Attacked), stat="identity", fill="gray35", width=1) + 
+     ylim(0,25) +  xlab("Day") +  ylab("Facsimiles Attacked") +
+     geom_text(aes(x=Day, y=Attacked, label = Attacked), vjust = -1) +
+     ggtitle(expression(bolditalic("Junonia coenia "))) +
+     geom_errorbar( aes(x=Day, ymin=Attacked-SD, ymax=Attacked+SD), width=0.2, size=0.5) + 
+     theme_classic() + theme( aspect.ratio = 4/3, 
+                              plot.title = element_text(hjust = 0.5, size=17), 
+                              axis.title = element_text(size = 15), axis.text = element_text(size = 15)) 
+j.plot 
+```
+
+## Final Figure (Part 1)
+
+```{r}
+figure = b.plot + j.plot 
+
+# Remove title from second subplot
+figure[[2]] = figure[[2]] + theme(axis.text.y = element_blank(),
+                                        axis.ticks.y = element_blank(),
+                                        axis.title.y = element_blank() )
+figure
+```
+
+```{r}
+figure = b.plot + j.plot 
+
+figure
+
+ggsave(figure, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/learning_figure.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
+
+```
+
+# Part [2] Figures
+
+
+## Quabbin Reservior Transect Map 
+
+```{r}
+d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_GIS_Data.csv")
+map <- read.csv(d, header = TRUE, sep = ",")
+head(map)
+```
+
+```{r}
+map <- subset(map, select = c(experiment, site, latitude, longitude) )
+head(map)
+```
+
+```{r}
+register_google(key = "")
+```
+
+```{r}
+quab.map <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+            geom_point(aes(x = longitude, y = latitude, shape = experiment, color = experiment), data = map, size = 4)  + 
+            theme(legend.position="right", 
+                    axis.title = element_text(size = 20, face="bold"), 
+                    axis.text = element_text(size = 20),
+                    legend.title = element_text(face ="bold")) + 
+             xlab("Longitude") + ylab("Latitude") +  labs(color = "Experiment Type", shape = "Experiment Type" ) +
+             scale_color_manual(breaks = c("one", "two", "four", "sim"), 
+                                values = c("darkorchid4", "darkorchid4", "darkorchid4", "red3"), 
+                                labels = c("Transect 1", "Transect 2", "Transect 3", "Transect 4")) + 
+             scale_shape_manual(breaks = c("one", "two", "four", "sim"), 
+                                values = c(17, 16, 15, 18), 
+                                labels = c("Transect 1", "Transect 2", "Transect 3", "Transect 4"))
+quab.map
+ggsave(quab.map, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/quab.map.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+```{r}
+map_sim <- subset(map, experiment == "sim") 
+map_sim
+
+quab_map_sim <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+            geom_point(aes(x = longitude, y = latitude, color = experiment), data = map_sim, size = 4)  + 
+            theme(legend.position="right", 
+                    axis.title = element_text(size = 20, face="bold"), 
+                    axis.text = element_text(size = 20),
+                    legend.title = element_text(face ="bold")) + 
+             xlab("Longitude") + ylab("Latitude") + 
+             scale_color_manual( values = c("darkorange2"))
+quab_map_sim
+```
+
+```{r}
+map_one <- subset(map, experiment == "one") 
+map_one
+
+quab_map_one <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+            geom_point(aes(x = longitude, y = latitude, color = experiment), data = map_one, size = 4)  + 
+            theme(legend.position="right", 
+                    axis.title = element_text(size = 20, face="bold"), 
+                    axis.text = element_text(size = 20),
+                    legend.title = element_text(face ="bold")) + 
+             xlab("Longitude") + ylab("Latitude") + 
+             scale_color_manual( values = c("royalblue"))
+quab_map_one
+```
+```{r}
+map_two <- subset(map, experiment == "two") 
+map_two
+
+quab_map_two <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+            geom_point(aes(x = longitude, y = latitude, color = experiment), data = map_two, size = 4)  + 
+            theme(legend.position="right", 
+                    axis.title = element_text(size = 20, face="bold"), 
+                    axis.text = element_text(size = 20),
+                    legend.title = element_text(face ="bold")) + 
+             xlab("Longitude") + ylab("Latitude") + 
+             scale_color_manual( values = c("plum4"))
+quab_map_two
+```
+
+```{r}
+map_four <- subset(map, experiment == "four") 
+map_four
+
+quab_map_four <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+            geom_point(aes(x = longitude, y = latitude, color = experiment), data = map_four, size = 4)  + 
+            theme(legend.position="right", 
+                    axis.title = element_text(size = 20, face="bold"), 
+                    axis.text = element_text(size = 20),
+                    legend.title = element_text(face ="bold")) + 
+             xlab("Longitude") + ylab("Latitude") + 
+             scale_color_manual( values = c("red4"))
+quab_map_four
+```
+
+## Prepping Figure Data 
+
+```{r}
+# isolate each treatment type to visualize patterns of attack 
+four_weeks   <- subset(mimic, treatment == "four", drop = FALSE) 
+two_weeks    <- subset(mimic, treatment == "two", drop = FALSE) 
+one_week     <- subset(mimic, treatment == "one", drop = FALSE) 
+simultaneous <- subset(mimic, treatment == "zero", drop = FALSE)
+
+four_attacks  <- aggregate(x=four_weeks$attacks, by = list(four_weeks$species), FUN=sum)
+two_attacks   <- aggregate(x=two_weeks$attacks, by = list(two_weeks$species), FUN=sum)
+one_attacks   <- aggregate(x=one_week$attacks, by = list(one_week$species), FUN=sum)
+zero_attacks  <- aggregate(x=simultaneous$attacks, by = list(simultaneous$species), FUN=sum)
+```
+
+## Confidence Intervals 
+
+```{r}
+# subset each species within each treatment to calculate a confidence interval for the proportion of facsimiles of each species attacked 
+
+  # four week experiment 
+lim4 <- subset(four_weeks, species == "limenitis", drop = FALSE)
+jun4 <- subset(four_weeks, species == "junonia", drop = FALSE)
+
+  # two week experiment 
+lim2 <- subset(two_weeks, species == "limenitis", drop = FALSE)
+jun2 <- subset(two_weeks, species == "junonia", drop = FALSE)
+
+  # one week experiment 
+lim1 <- subset(one_week, species == "limenitis", drop = FALSE)
+jun1 <- subset(one_week, species == "junonia", drop = FALSE)
+
+  # simultaneous experiment 
+lim0 <- subset(simultaneous, species == "limenitis", drop = FALSE)
+jun0 <- subset(simultaneous, species == "junonia", drop = FALSE)
+
+
+# calculate standard deviation of attacked proportion 
+
+  # four week experiment 
+lim4.sd <- sd(lim4$attacks)
+jun4.sd <- sd(jun4$attacks)
+
+  # two week experiment 
+lim2.sd <- sd(lim2$attacks)
+jun2.sd <- sd(jun2$attacks)
+
+  # one week experiment 
+lim1.sd <- sd(lim1$attacks)
+jun1.sd <- sd(jun1$attacks)
+
+  # simultaneous experiment 
+lim0.sd <- sd(lim0$attacks)
+jun0.sd <- sd(jun0$attacks)
+```
+
+```{r}
+# create a new data frame with the species info, attack proportion, and confidence interval for each treatment 
+
+  # four week experiment 
+four_plot_data <- data.frame(
+  Species  = four_attacks$Group.1,
+  Attacks  = four_attacks$x,
+  SD       = c(jun4.sd, lim4.sd)
+)
+four_plot_data
+
+  # two week experiment 
+two_plot_data <- data.frame(
+  Species  = two_attacks$Group.1,
+  Attacks  = two_attacks$x,
+  SD       = c(jun2.sd, lim2.sd)
+)
+two_plot_data
+
+  # one week experiment 
+one_plot_data <- data.frame(
+  Species = one_attacks$Group.1,
+  Attacks = one_attacks$x,
+  SD      = c(jun1.sd, lim1.sd)
+)
+one_plot_data
+
+  # simultaneous experiment 
+zero_plot_data <- data.frame(
+  Species = zero_attacks$Group.1,
+  Attacks = zero_attacks$x,
+  SD      = c(jun0.sd, lim0.sd)
+)
+zero_plot_data
+```
+
+## Four Week Experiment Figure 
+
+```{r}
+four_plot <- ggplot(four_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "gray70"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 90,
+                   pattern_density = 0.1,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("Four-Week Treatment"))) +  ylab("Facsimiles Attacked") + 
+             geom_text(aes(x=Species, y=Attacks, label = Attacks), vjust = -1) +
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'none')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 12), 
+                    axis.text = element_text(size = 10), 
+                    legend.position = "none") 
+
+
+two_plot <- ggplot(two_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "gray70"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 90,
+                   pattern_density = 0.7,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("Two-Week Treatment"))) + ylab("Facsimiles Attacked") + 
+             geom_text(aes(x=Species, y=Attacks, label = Attacks), vjust = -1) +
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'none')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             geom_text(aes(x=Species, y=Attacks, label = Attacks), vjust = -1) +
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 12), 
+                    axis.text = element_text(size = 10), 
+                    legend.position = "none") 
+
+one_plot <- ggplot(one_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "gray70"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 45,
+                   pattern_density = 0.9,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("One-Week Treatment"))) + ylab("Facsimiles Attacked") + 
+             geom_text(aes(x=Species, y=Attacks, label = Attacks), vjust = -1) +
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'none')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 12), 
+                    axis.text = element_text(size = 10), 
+                    legend.position = "none") 
+
+one_plot  
+
+p_value <- tibble(
+  x = c("limenitis", "limenitis", "junonia", "junonia"),
+  y = c(18, 19, 19, 18)
+)
+
+zero_plot <- ggplot(zero_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "gray70"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 45,
+                   pattern_density = 0.1,
+                   pattern_spacing = 0.05) + 
+             geom_line(data = p_value, aes(x = x, y = y, group = 1)) +
+             ylim(0,20)  + xlab(expression(bold("Simultaneous Treatment"))) +  ylab("Facsimiles Attacked (%)") + 
+             geom_text(aes(x=Species, y=Attacks, label = Attacks), vjust = -1) +
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'none')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 12), 
+                    axis.text = element_text(size = 10), 
+                    legend.position = "none") 
+
+
+fig = zero_plot + one_plot + two_plot + four_plot 
+
+fig[[1]] = fig[[1]] + theme(axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[2]] = fig[[2]] + theme(axis.title.y = element_blank(), 
+                            axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[3]] = fig[[3]] + theme(axis.title.y = element_blank(),
+                            axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[4]] = fig[[4]] + theme(axis.title.y = element_blank(), 
+                            axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+attack.fig <- fig + plot_layout(nrow=1)
+attack.fig
+
+ggsave(attack.fig, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/attack_fig.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
+
+```
+
+```{r}
+four_plot <- ggplot(four_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "white"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 90,
+                   pattern_density = 0.1,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("Four-Week Treatment"))) +  ylab("Facsimiles Attacked") + 
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'crosshatch')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 15), 
+                    axis.text = element_text(size = 15), 
+                    legend.position = "none") 
+
+
+two_plot <- ggplot(two_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "white"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 90,
+                   pattern_density = 0.7,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("Two-Week Treatment"))) + ylab("Facsimiles Attacked") + 
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'circle')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 15), 
+                    axis.text = element_text(size = 15), 
+                    legend.position = "none") 
+
+one_plot <- ggplot(one_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "white"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 45,
+                   pattern_density = 0.9,
+                   pattern_spacing = 0.05) + 
+             ylim(0,20)  + xlab(expression(bold("One-Week Treatment"))) + ylab("Facsimiles Attacked") + 
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'wave')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 15), 
+                    axis.text = element_text(size = 15), 
+                    legend.position = "none") 
+
+one_plot  
+
+p_value <- tibble(
+  x = c("limenitis", "limenitis", "junonia", "junonia"),
+  y = c(18, 19, 19, 18)
+)
+
+zero_plot <- ggplot(zero_plot_data) +
+             geom_bar_pattern(aes(Species, Attacks, pattern = Species),
+                   stat = "identity", 
+                   fill= c("gray35", "white"), 
+                   width = 0.8, 
+                   pattern_fill = "white",
+                   pattern_angle = 45,
+                   pattern_density = 0.1,
+                   pattern_spacing = 0.05) + 
+             geom_line(data = p_value, aes(x = x, y = y, group = 1)) +
+             ylim(0,20)  + xlab(expression(bold("Simultaneous Treatment"))) +  ylab("Facsimiles Attacked (%)") + 
+             scale_x_discrete(limits =  c("limenitis", "junonia"), 
+                              labels = c("limenitis" = expression(italic("L. arthemis ")),"junonia" = expression(italic("J. coenia ")))) + 
+             scale_pattern_manual(values=c('none', 'crosshatch')) + 
+             geom_errorbar( aes(x=Species, ymin=Attacks-SD, ymax=Attacks+SD), width=0.2, size=0.5) + 
+             theme_classic() +
+             theme( aspect.ratio = 4/3, 
+                    axis.title = element_text(size = 15), 
+                    axis.text = element_text(size = 15), 
+                    legend.position = "none") 
+
+
+fig = four_plot + two_plot + one_plot + zero_plot
+
+fig[[1]] = fig[[1]] + theme(axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[2]] = fig[[2]] + theme(axis.title.y = element_blank(), 
+                            axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[3]] = fig[[3]] + theme(axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+fig[[4]] = fig[[4]] + theme(axis.title.y = element_blank(), 
+                            axis.title.x = element_blank(), 
+                            axis.text.x = element_blank())
+
+attack.fig <- fig + plot_layout(nrow=2)
+attack.fig
+```

@@ -1,10 +1,9 @@
 # Temporal_Synchrony_Predation_Experiments
 Data and code associated with temporal synchrony predation experiments 
-i am editing my readme file 
+
+Corresponding author: Abigial E. Robinson (aer13@bu.edu)
+
+Abstract: 
 
 
-can i also edit from r 
 
-
-
-how does this thing create paragraphs 
