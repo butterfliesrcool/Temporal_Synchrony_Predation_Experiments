@@ -4,9 +4,8 @@ author: "Abby Robinson"
 date: "12/16/2022"
 output: html_document
 ---
-# Getting Ready 
 
-## Packages
+# Packages
 
 The following packages were used for this statistical analysis 
 
@@ -38,7 +37,7 @@ vignette("DHARMa", package="DHARMa") ### Useful information for checking residua
 3. The responses are independent from one another. 
 4. The responses occur over fixed time or space. 
 
-# [1] Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments, compared to the undefended facsimiles of the control?
+#Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments, compared to the undefended facsimiles of the control?
 
 In order to address how the time delay will affect attack rates on the mimics, we first need to show that our training experiment was effective and birds learned to avoid facsimiles of battus philenor. 
 
@@ -46,7 +45,7 @@ I hypothesize that birds will learn to avoid the chemically defended models fast
 
 Because this initial question of the project is focused on the training phase of the experiment, each of the three time-delayed experiments (four, two, one) are essentially identical replicates of each other, and therefore this data can be pooled to increase power. 
 
-## Prepping Data 
+##Prepping Data 
 
 Load data from GitHub repo using "curl()" command 
 
@@ -109,7 +108,7 @@ aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=s
 aggregate(x= model$attacks, by= list(model$treatment), FUN=sum)
 ```
 
-## Model 1
+## Model 1 (learning phase)
 
 ```{r}
 mod1 <- glmmTMB(attacks ~ species*experiment.day + species*treatment + (1|field.site/field.day), data=model,ziformula=~1,family=poisson) 
@@ -142,7 +141,7 @@ post.hoc1
 emmeans(mod1, pairwise ~ treatment|species) #no significant differences between treatments during the learning phase 
 ```
 
-# [2] When is limenitis protected from predation (four-week exp, two-week exp, one-week exp, or simultaneous exp)?
+# When is limenitis protected from predation (four-week exp, two-week exp, one-week exp, or simultaneous exp)?
 
 Now that we have established that the bird community at the Quabbin Reservoir did learn to avoid facsimiles of the model species Battus philenor, we can explore how the birds responded to the mimics. In each location where birds learned to avoin the model, we returned at different times (4 weeks later, 2 weeks later, one week later, or simultaneously (zero weeks)), presented the mimic and the control, and examined how birds responded to the mimic under different temporal delay treatments. 
 
@@ -201,7 +200,7 @@ var(mimic$attacks)
 mean(mimic$attacks) # variance is greater than mean, which indicates that over-dispersion might be an issue 
 ```
 
-## Model 2
+## Model 2 (testing phase)
 
 Model 2 includes field.day as a random effects variable, but this model results in singularity issues 
 
@@ -221,7 +220,7 @@ testDispersion(mod2simulation)
 testZeroInflation(mod2simulation) 
 ```
 
-## Model 3 
+## Model 3 (testing phase)
 
 Model 3 does not include field.day as a random effect variable, which removes the singularity issues found in the previous model 
 
@@ -257,9 +256,11 @@ post.hoc4
 post.hoc5
 ```
 
-## Part [1] Figures
+# Figures
 
-## Visualizing attack data 
+## learning phase figure 
+
+### Visualizing attack data 
 
 ```{r}
 length(model$attacks)
@@ -270,7 +271,7 @@ length(model$attacks)
 aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
 ```
 
-## Confidence Intervals 
+### Confidence Intervals 
 
 ```{r}
 # subset model data (battus philenor)
@@ -338,7 +339,7 @@ junonia_plot_data <- data.frame(
 junonia_plot_data
 ```
 
-## Battus philenor Figure 
+### Battus philenor Figure 
 
 ```{r}
 p_value <- tibble(
@@ -370,7 +371,7 @@ b.plot <- ggplot(battus_plot_data) +
 b.plot 
 ```
 
-## Junonia coenia Figure 
+### Junonia coenia Figure 
 
 ```{r}
 j.plot <- ggplot(junonia_plot_data) +
@@ -385,7 +386,7 @@ j.plot <- ggplot(junonia_plot_data) +
 j.plot 
 ```
 
-## Final Figure (Part 1)
+### Final Figure (Part 1)
 
 ```{r}
 figure = b.plot + j.plot 
@@ -405,8 +406,6 @@ figure
 ggsave(figure, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/learning_figure.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
 
 ```
-
-# Part [2] Figures
 
 
 ## Quabbin Reservior Transect Map 
@@ -523,7 +522,9 @@ quab_map_four <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
 quab_map_four
 ```
 
-## Prepping Figure Data 
+## Testing phase figure 
+
+### Prepping Figure Data 
 
 ```{r}
 # isolate each treatment type to visualize patterns of attack 
@@ -538,7 +539,7 @@ one_attacks   <- aggregate(x=one_week$attacks, by = list(one_week$species), FUN=
 zero_attacks  <- aggregate(x=simultaneous$attacks, by = list(simultaneous$species), FUN=sum)
 ```
 
-## Confidence Intervals 
+### Confidence Intervals 
 
 ```{r}
 # subset each species within each treatment to calculate a confidence interval for the proportion of facsimiles of each species attacked 
@@ -615,7 +616,7 @@ zero_plot_data <- data.frame(
 zero_plot_data
 ```
 
-## Four Week Experiment Figure 
+### Four Week Experiment Figure 
 
 ```{r}
 four_plot <- ggplot(four_plot_data) +
