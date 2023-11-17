@@ -1,5 +1,5 @@
 ---
-title: "Temporal Dynamics of Predator Learning in a Batesian Mimicry Complex"
+title: "Is temporal synchrony necessary for effective Batesian mimicry?"
 author: "Abby Robinson"
 date: "12/16/2022"
 output: html_document
@@ -9,7 +9,7 @@ output: html_document
 
 The following packages were used for this statistical analysis 
 
-```{r}
+```{r packages}
 library(curl)
 library(ggplot2)
 library(lme4)
@@ -26,7 +26,7 @@ library(tidyverse)
 ```
 
 We used the "DHARMa" package to check residuals and model assumptions 
-```{r}
+```{r DHARMa Vignette}
 vignette("DHARMa", package="DHARMa") ### Useful information for checking residuals/ model assumptions 
 ```
 
@@ -49,8 +49,8 @@ Because this initial question of the project is focused on the training phase of
 
 Load data from GitHub repo using "curl()" command 
 
-```{r}
-m <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_Model_Data.csv")
+```{r pull model data}
+m <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/Quabbin_Model_Data.csv")
 model <- read.csv(m, header = TRUE, sep = ",")
 head(model)
 
@@ -60,7 +60,7 @@ head(model)
 
 Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
 
-```{r}
+```{r check data type}
 # make field.day variable factor
 class(model$field.day) 
 model$field.day <- as.factor(model$field.day)
@@ -92,7 +92,7 @@ class(model$treatment)
 
 ## Visualize Data 
 
-```{r}
+```{r checking variance assumptions}
 # histogram of attacks 
 hist(model$attacks)  #concerns about zero inflation based on histogram? 
 
@@ -101,16 +101,16 @@ var(model$attacks)
 mean(model$attacks) # variance is greater than mean, which indicates that over-dispersion might be an issue 
 ```
 
-```{r}
+```{r aggregate}
 # summarizing attacks 
 aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
 
 aggregate(x= model$attacks, by= list(model$treatment), FUN=sum)
 ```
 
-## Model 1 (learning phase)
+## Model 1 (training phase)
 
-```{r}
+```{r mod1 }
 mod1 <- glmmTMB(attacks ~ species*experiment.day + species*treatment + (1|field.site/field.day), data=model,ziformula=~1,family=poisson) 
 summary(mod1)
 check_singularity(mod1) 
@@ -122,7 +122,7 @@ check_singularity(mod1)
 
 Check residuals with "DHARMa" package 
 
-```{r}
+```{r check assumptions and residuals}
 packageVersion("DHARMa")
 mod1simulation <- simulateResiduals(fittedModel = mod1, plot = T)
 
@@ -134,7 +134,7 @@ testZeroInflation(mod1simulation)
 
 Post Hoc test allows us to compare attacks on each experimental day for each species 
 
-```{r}
+```{r post hoc 1}
 post.hoc1 <- emmeans(mod1, pairwise ~ experiment.day|species) 
 post.hoc1
 
@@ -151,15 +151,15 @@ Previous lab work and models of pavlovian learning suggest that predators should
 
 Load data file from GitHub repo
 
-```{r}
-c <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_Mimic_Data.csv")
+```{r pull mimic data }
+c <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/Quabbin_Mimic_Data.csv")
 mimic <- read.csv(c, header = TRUE, sep = ",")
 head(mimic)
 ```
 
 Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
 
-```{r}
+```{r check data type}
 # make experimental.day variable factor 
 class(mimic$experiment.day) 
 mimic$experiment.day <- as.factor(mimic$experiment.day)
@@ -191,7 +191,7 @@ class(mimic$treatment)
 
 ## Visualize Data 
 
-```{r}
+```{r check variance assumptions}
 # histogram of attacks 
 hist(mimic$attacks)  #concerns about zero inflation based on histogram? 
 
@@ -204,7 +204,7 @@ mean(mimic$attacks) # variance is greater than mean, which indicates that over-d
 
 Model 2 includes field.day as a random effects variable, but this model results in singularity issues 
 
-```{r}
+```{r mod2}
 mod2 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site) + (1|field.day), data=mimic,ziformula=~1,family=poisson) 
 summary(mod2)
 check_singularity(mod2) 
@@ -212,7 +212,7 @@ check_singularity(mod2)
 # singularity issues, likely due to the field.day random effect variable 
 ```
 
-```{r}
+```{r mod2 assumptions check}
 mod2simulation <- simulateResiduals(fittedModel = mod2, plot = T)
 testUniformity(mod2simulation) 
 testOutliers(mod2simulation)
@@ -224,7 +224,7 @@ testZeroInflation(mod2simulation)
 
 Model 3 does not include field.day as a random effect variable, which removes the singularity issues found in the previous model 
 
-```{r}
+```{r mod3}
 mod3 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site), data=mimic,ziformula=~1,family=poisson) 
 summary(mod3)
 check_singularity(mod3) 
@@ -232,7 +232,7 @@ check_singularity(mod3)
 #removing the field.day random effect variable removes the singularity issues, but do we want to do that?
 ```
 
-```{r}
+```{r mod3 assumptions check }
 mod3simulation <- simulateResiduals(fittedModel = mod3, plot = T)
 testUniformity(mod3simulation) 
 testOutliers(mod3simulation)
@@ -240,20 +240,20 @@ testDispersion(mod3simulation)
 testZeroInflation(mod3simulation) 
 ```
 
-```{r}
+```{r post hocs for mod2 and mod3}
 post.hoc2 <- emmeans(mod2, pairwise ~ species|treatment) 
 #there is a significant difference in the attack rates on junonia and limenitis only in the zero week treatment (simultaneous presentation)
 post.hoc2
 
-post.hoc3 <- emmeans(mod3, pairwise ~ experiment.day|species)
-# there are no significant differences in attacks on the mimic (limenitis) across the 4-day experiment. There is a significant difference between days 1 and 3 for the control (junonia), likely due to weather 
+post.hoc3 <- emmeans(mod3, pairwise ~ species|treatment)
 post.hoc3 
+#post hoc results are the same for mod2 and mod3
+#given this, we include mod2 in the final analysis because there are biological reasons for including field.day as a random effect 
 
-post.hoc4 <- emmeans(mod2, pairwise ~ species|treatment) 
+
+post.hoc4 <- emmeans(mod3, pairwise ~ species|treatment) 
 post.hoc5 <- emmeans(mod2, pairwise ~ experiment.day|species)
-#results are the same for the model with singularity issues that includes field.day as a random effect variable 
-post.hoc4
-post.hoc5
+# there are no significant differences in attacks on the mimic (limenitis) across the 4-day experiment. There is a significant difference between days 1 and 3 for the control (junonia), likely due to weather 
 ```
 
 # Figures
@@ -262,18 +262,18 @@ post.hoc5
 
 ### Visualizing attack data 
 
-```{r}
+```{r data length }
 length(model$attacks)
 ```
 
-```{r}
+```{r aggregate}
 # Summary of attacks on facsimiles during learning  phase 
 aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
 ```
 
 ### Confidence Intervals 
 
-```{r}
+```{r subset B.philenor}
 # subset model data (battus philenor)
 b <- subset(model, species == "battus", drop = FALSE)
 
@@ -281,14 +281,14 @@ b_attacked <- aggregate(x=b$attacks, by = list(b$species, b$experiment.day), FUN
 b_attacked
 ```
 
-```{r}
+```{r subset J.coenia}
 # subset control data (junonia coenia)
 j <- subset(model, species == "junonia", drop = FALSE)
 j_attacked <- aggregate(x=j$attacks, by = list(j$species, j$experiment.day), FUN=sum)
 j_attacked
 ```
 
-```{r}
+```{r Calculate SD}
 # subset each day within each species to calculate a confidence interval for the count total of facsimiles attacked  each experimental day 
 
   # battus philenor (model)
@@ -319,7 +319,7 @@ j4.sd <- sd(j4$attacks)
 ```
 
 
-```{r}
+```{r new data frame with SD}
 # create a new data frame with the experimental day info, attack proportion, and confidence interval for each species 
 
   # battus philenor (model)
@@ -341,7 +341,7 @@ junonia_plot_data
 
 ### Battus philenor Figure 
 
-```{r}
+```{r B.pilenor figure}
 p_value <- tibble(
   x = c("1", "1", "3", "3"),
   y = c(24, 25, 25, 23)
@@ -373,7 +373,7 @@ b.plot
 
 ### Junonia coenia Figure 
 
-```{r}
+```{r J.coenia figure}
 j.plot <- ggplot(junonia_plot_data) +
      geom_bar( aes(Day, Attacked), stat="identity", fill="gray35", width=1) + 
      ylim(0,25) +  xlab("Day") +  ylab("Facsimiles Attacked") +
@@ -388,7 +388,7 @@ j.plot
 
 ### Final Figure (Part 1)
 
-```{r}
+```{r final figure}
 figure = b.plot + j.plot 
 
 # Remove title from second subplot
@@ -398,7 +398,7 @@ figure[[2]] = figure[[2]] + theme(axis.text.y = element_blank(),
 figure
 ```
 
-```{r}
+```{r save figure }
 figure = b.plot + j.plot 
 
 figure
@@ -410,22 +410,22 @@ ggsave(figure, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/lea
 
 ## Quabbin Reservior Transect Map 
 
-```{r}
-d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Dynamics/main/Quabbin_GIS_Data.csv")
+```{r load GIS data for map}
+d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/Quabbin_GIS_Data.csv")
 map <- read.csv(d, header = TRUE, sep = ",")
 head(map)
 ```
 
-```{r}
+```{r data filtering }
 map <- subset(map, select = c(experiment, site, latitude, longitude) )
 head(map)
 ```
 
-```{r}
+```{r load google API}
 register_google(key = "")
 ```
 
-```{r}
+```{r Quabbin map figure }
 quab.map <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
                     zoom = 12, scale = 2,
                     maptype ='roadmap',
@@ -447,7 +447,8 @@ quab.map
 ggsave(quab.map, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/quab.map.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
 
 ```
-```{r}
+
+```{r T0 map }
 map_sim <- subset(map, experiment == "sim") 
 map_sim
 
@@ -466,7 +467,7 @@ quab_map_sim <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
 quab_map_sim
 ```
 
-```{r}
+```{r T1 map }
 map_one <- subset(map, experiment == "one") 
 map_one
 
@@ -484,7 +485,8 @@ quab_map_one <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
              scale_color_manual( values = c("royalblue"))
 quab_map_one
 ```
-```{r}
+
+```{r T2 map }
 map_two <- subset(map, experiment == "two") 
 map_two
 
@@ -503,7 +505,7 @@ quab_map_two <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
 quab_map_two
 ```
 
-```{r}
+```{r T4 map }
 map_four <- subset(map, experiment == "four") 
 map_four
 
@@ -526,7 +528,7 @@ quab_map_four
 
 ### Prepping Figure Data 
 
-```{r}
+```{r aggregate by treatment}
 # isolate each treatment type to visualize patterns of attack 
 four_weeks   <- subset(mimic, treatment == "four", drop = FALSE) 
 two_weeks    <- subset(mimic, treatment == "two", drop = FALSE) 
@@ -541,7 +543,7 @@ zero_attacks  <- aggregate(x=simultaneous$attacks, by = list(simultaneous$specie
 
 ### Confidence Intervals 
 
-```{r}
+```{r calculate SD}
 # subset each species within each treatment to calculate a confidence interval for the proportion of facsimiles of each species attacked 
 
   # four week experiment 
@@ -580,7 +582,7 @@ lim0.sd <- sd(lim0$attacks)
 jun0.sd <- sd(jun0$attacks)
 ```
 
-```{r}
+```{r new data frame with SD}
 # create a new data frame with the species info, attack proportion, and confidence interval for each treatment 
 
   # four week experiment 
@@ -618,7 +620,7 @@ zero_plot_data
 
 ### Four Week Experiment Figure 
 
-```{r}
+```{r testing phase figure }
 four_plot <- ggplot(four_plot_data) +
              geom_bar_pattern(aes(Species, Attacks, pattern = Species),
                    stat = "identity", 
@@ -738,7 +740,7 @@ ggsave(attack.fig, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project
 
 ```
 
-```{r}
+```{r alternative figure }
 four_plot <- ggplot(four_plot_data) +
              geom_bar_pattern(aes(Species, Attacks, pattern = Species),
                    stat = "identity", 
