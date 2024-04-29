@@ -23,6 +23,7 @@ library(googleway)
 library("rstudioapi")
 library(ggpattern)
 library(tidyverse)
+library(car)
 ```
 
 We used the "DHARMa" package to check residuals and model assumptions 
@@ -37,7 +38,8 @@ vignette("DHARMa", package="DHARMa") ### Useful information for checking residua
 3. The responses are independent from one another. 
 4. The responses occur over fixed time or space. 
 
-#Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments? Did avian predators learn to avoid facsimiles of the control during the 4 day experiment? 
+#Training Phase Models 
+Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments? Did avian predators learn to avoid facsimiles of the control during the 4 day experiment? 
 
 In order to address how the time delay will affect attack rates on the mimics, we first need to show that our training experiment was effective and birds learned to avoid facsimiles of battus philenor. 
 
@@ -84,10 +86,10 @@ class(model$species)
 model$species <- as.factor(model$species)
 class(model$species)
 
-# make treatment variable factor 
-class(model$treatment)
-model$treatment <- as.factor(model$treatment)
-class(model$treatment)
+# make transect variable factor 
+class(model$transect)
+model$transect <- as.factor(model$transect)
+class(model$transect)
 ```
 
 ## Visualize Data 
@@ -105,26 +107,45 @@ mean(model$attacks) # variance is greater than mean, which indicates that over-d
 # summarizing attacks 
 aggregate(x= model$attacks, by= list(model$experiment.day, model$species), FUN=sum)
 
-aggregate(x= model$attacks, by= list(model$treatment), FUN=sum)
+aggregate(x= model$attacks, by= list(model$transect), FUN=sum)
 ```
 
-## Model 1 (training phase)
+## glmmTMB Models 
 
-```{r mod1 }
-mod1 <- glmmTMB(attacks ~ species*experiment.day + species*treatment + (1|field.site/field.day), data=model,ziformula=~1,family=poisson) 
-summary(mod1)
-check_singularity(mod1) 
+run to models to assess two questions: 
+1. did birds learn to avoid facsimiles of the model across four days? 
+2. did birds learn to avoid facsimiles of the control across four days? 
 
-# no singularity issues 
-# no convergence issues 
-# include experiment.day as a covariate! 
+```{r training phase models }
+battus <- subset(model, species == "battus")
+junonia <- subset(model, species == "junonia")
+
+# battus 
+
+# we include transect as a fixed effect in this model to assess the effect of space and time on attack rates 
+mod_battus <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), 
+                data = battus, ziformula=~1, family=poisson) 
+summary(mod_battus)
+check_singularity(mod_battus) 
+Anova(mod_battus, type = "III") # significant effect of experiment day 
+# no effect of transect (space & time) 
+
+# junonia (control) 
+
+mod_junonia <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), 
+                data = junonia, ziformula=~1, family=poisson) 
+
+summary(mod_junonia)
+check_singularity(mod_junonia) 
+Anova(mod_junonia, type = "III") # experiment day not significant 
+
 ```
 
-Check residuals with "DHARMa" package 
+## Check residuals with "DHARMa" package 
 
-```{r check assumptions and residuals}
+```{r mod_battus residuals }
 packageVersion("DHARMa")
-mod1simulation <- simulateResiduals(fittedModel = mod1, plot = T)
+mod1simulation <- simulateResiduals(fittedModel = mod_battus, plot = T)
 
 testUniformity(mod1simulation) 
 testOutliers(mod1simulation)
@@ -132,16 +153,29 @@ testDispersion(mod1simulation)
 testZeroInflation(mod1simulation) 
 ```
 
+```{r mod_junonia residuals }
+packageVersion("DHARMa")
+mod2simulation <- simulateResiduals(fittedModel = mod_junonia, plot = T)
+
+testUniformity(mod2simulation) 
+testOutliers(mod2simulation)
+testDispersion(mod2simulation) 
+testZeroInflation(mod2simulation) 
+```
+## Post Hoc Tests 
 Post Hoc test allows us to compare attacks on each experimental day for each species 
 
-```{r post hoc 1}
-post.hoc1 <- emmeans(mod1, pairwise ~ experiment.day|species) 
-post.hoc1
+```{r mod_battus post hoc}
 
-emmeans(mod1, pairwise ~ treatment|species) #no significant differences between treatments during the learning phase 
+post_hoc1 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "bonferroni") 
+post_hoc1
+
+post_hoc2 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "scheffe") 
+post_hoc2
 ```
 
-# When is limenitis protected from predation (four-week exp, two-week exp, one-week exp, or simultaneous exp)?
+# Testing Phase Models 
+Biological question: When is limenitis protected from predation (four-week exp, two-week exp, one-week exp, or simultaneous exp)?
 
 Now that we have established that the bird community at the Quabbin Reservoir did learn to avoid facsimiles of the model species Battus philenor, we can explore how the birds responded to the mimics. In each location where birds learned to avoin the model, we returned at different times (4 weeks later, 2 weeks later, one week later, or simultaneously (zero weeks)), presented the mimic and the control, and examined how birds responded to the mimic under different temporal delay treatments. 
 
@@ -200,65 +234,101 @@ var(mimic$attacks)
 mean(mimic$attacks) # variance is greater than mean, which indicates that over-dispersion might be an issue 
 ```
 
-## Model 2 (testing phase)
+## glmmTMB Models 
 
-Model 2 includes field.day as a random effects variable, but this model results in singularity issues 
+To control for spatial confounds, our models only compare attacks on mimic facsimiles to attacks on control facsimiles within each treatment, not across treatment. 
 
-```{r mod2}
-mod2 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site) + (1|field.day), data=mimic,ziformula=~1,family=poisson) 
-summary(mod2)
-check_singularity(mod2) 
-
-# singularity issues, likely due to the field.day random effect variable 
+```{r subset treatments }
+T4 <- subset(mimic, treatment == "four")
+T2 <- subset(mimic, treatment == "two")
+T1 <- subset(mimic, treatment == "one")
+T0 <- subset(mimic, treatment == "zero")
 ```
 
-```{r mod2 assumptions check}
-mod2simulation <- simulateResiduals(fittedModel = mod2, plot = T)
-testUniformity(mod2simulation) 
-testOutliers(mod2simulation)
-testDispersion(mod2simulation) 
-testZeroInflation(mod2simulation) 
+```{r T4 model}
+mod_T4 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T4, ziformula=~1, family=poisson) 
+summary(mod_T4)
+check_singularity(mod_T4) 
+Anova(mod_T4, type = "III") # not significant 
 ```
 
-## Model 3 (testing phase)
-
-Model 3 does not include field.day as a random effect variable, which removes the singularity issues found in the previous model 
-
-```{r mod3}
-mod3 <- glmmTMB(attacks ~ experiment.day*species + treatment*species + (1|field.site), data=mimic,ziformula=~1,family=poisson) 
-summary(mod3)
-check_singularity(mod3) 
-
-#removing the field.day random effect variable removes the singularity issues, but do we want to do that?
+```{r T2 model}
+mod_T2 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T2, ziformula=~1, family=poisson) 
+summary(mod_T2)
+check_singularity(mod_T2) 
+Anova(mod_T2, type = "III") # not significant 
 ```
 
-```{r mod3 assumptions check }
-mod3simulation <- simulateResiduals(fittedModel = mod3, plot = T)
-testUniformity(mod3simulation) 
+```{r T1 model}
+mod_T1 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T1, ziformula=~1, family=poisson) 
+summary(mod_T1)
+check_singularity(mod_T1) 
+Anova(mod_T1, type = "III") # not significant 
+```
+
+```{r T0 model}
+mod_T0 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T0, ziformula=~1, family=poisson) 
+summary(mod_T0)
+check_singularity(mod_T0) 
+Anova(mod_T0, type = "III") # significant effect of species 
+```
+
+## check residuals 
+
+```{r mod_T4}
+mod3simulation <- simulateResiduals(fittedModel = mod_T4, plot = T)
+testUniformity(mod3simulation)  # significant KS test 
 testOutliers(mod3simulation)
 testDispersion(mod3simulation) 
 testZeroInflation(mod3simulation) 
 ```
+```{r mod_T2}
+mod4simulation <- simulateResiduals(fittedModel = mod_T2, plot = T)
+testUniformity(mod4simulation)
+testOutliers(mod4simulation)
+testDispersion(mod4simulation) 
+testZeroInflation(mod4simulation) 
+```
 
-```{r post hocs for mod2 and mod3}
-post.hoc2 <- emmeans(mod2, pairwise ~ species|treatment) 
-#there is a significant difference in the attack rates on junonia and limenitis only in the zero week treatment (simultaneous presentation)
-post.hoc2
+```{r mod_T1}
+mod5simulation <- simulateResiduals(fittedModel = mod_T1, plot = T)
+testUniformity(mod5simulation) # significant KS test 
+testOutliers(mod5simulation)
+testDispersion(mod5simulation) 
+testZeroInflation(mod5simulation) 
+```
 
-post.hoc3 <- emmeans(mod3, pairwise ~ species|treatment)
-post.hoc3 
-#post hoc results are the same for mod2 and mod3
-#given this, we include mod2 in the final analysis because there are biological reasons for including field.day as a random effect 
+```{r mod_T0}
+mod6simulation <- simulateResiduals(fittedModel = mod_T0, plot = T)
+testUniformity(mod6simulation) # significant deviations from uniformity 
+testOutliers(mod6simulation)
+testDispersion(mod6simulation) 
+testZeroInflation(mod6simulation) 
+```
 
-
-post.hoc4 <- emmeans(mod3, pairwise ~ species|treatment) 
-post.hoc5 <- emmeans(mod2, pairwise ~ experiment.day|species)
-# there are no significant differences in attacks on the mimic (limenitis) across the 4-day experiment. There is a significant difference between days 1 and 3 for the control (junonia), likely due to weather 
+```{r post hocs }
+# post.hoc2 <- emmeans(mod2, pairwise ~ species|treatment) 
+# #there is a significant difference in the attack rates on junonia and limenitis only in the zero week treatment (simultaneous presentation)
+# post.hoc2
+# 
+# post.hoc3 <- emmeans(mod3, pairwise ~ species|treatment)
+# post.hoc3 
+# #post hoc results are the same for mod2 and mod3
+# #given this, we include mod2 in the final analysis because there are biological reasons for including field.day as a random effect 
+# 
+# 
+# post.hoc4 <- emmeans(mod3, pairwise ~ species|treatment) 
+# post.hoc5 <- emmeans(mod2, pairwise ~ experiment.day|species)
+# # there are no significant differences in attacks on the mimic (limenitis) across the 4-day experiment. There is a significant difference between days 1 and 3 for the control (junonia), likely due to weather 
 ```
 
 # Figures
 
-## learning phase figure 
+## training  phase figure 
 
 ### Visualizing attack data 
 
