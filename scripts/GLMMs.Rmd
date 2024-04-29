@@ -37,7 +37,7 @@ vignette("DHARMa", package="DHARMa") ### Useful information for checking residua
 3. The responses are independent from one another. 
 4. The responses occur over fixed time or space. 
 
-#Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments, compared to the undefended facsimiles of the control?
+#Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments? Did avian predators learn to avoid facsimiles of the control during the 4 day experiment? 
 
 In order to address how the time delay will affect attack rates on the mimics, we first need to show that our training experiment was effective and birds learned to avoid facsimiles of battus philenor. 
 
