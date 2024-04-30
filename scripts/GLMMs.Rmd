@@ -181,6 +181,12 @@ Now that we have established that the bird community at the Quabbin Reservoir di
 
 Previous lab work and models of pavlovian learning suggest that predators should be able to retain memory of negative stimuli for long periods of time after that negative stimulus is removed. Here, we are examining how long after a negative stimulus is removed predators in natural environments retain memory of that negative model stimulus & avoid mimics. 
 
+These models aim to statistically assess the following questions: 
+1. Do birds in T4 attack the mimic significantly less than the control? 
+2. Do birds in T2 attack the mimic significatly less than the control? 
+3. Do birds in T1 attack the mimic significantly less than the control? 
+4. Do birds in T0 attack the mimic significantly less than the control?
+
 ## Prepping Data 
 
 Load data file from GitHub repo
