@@ -39,13 +39,15 @@ vignette("DHARMa", package="DHARMa") ### Useful information for checking residua
 4. The responses occur over fixed time or space. 
 
 #Training Phase Models 
-Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiments? Did avian predators learn to avoid facsimiles of the control during the 4 day experiment? 
+STATISTICAL QUESTIONS:
+1. Did avian predators learn to avoid facsimiles of Battus philenor during 4-day experiment? 
+2. Did avian predators learn to avoid facsimiles of the control during the 4-day experiment? 
 
 In order to address how the time delay will affect attack rates on the mimics, we first need to show that our training experiment was effective and birds learned to avoid facsimiles of battus philenor. 
 
-I hypothesize that birds will learn to avoid the chemically defended models faster than the control, and that we will therefore see lower attack rates on the model in the last three days of the experiment compared to the control. 
+I hypothesize that birds will learn to avoid the chemically defended model, but not the control, and that we will therefore see lower attack rates on the model in the last three days of the experiment compared to the control. 
 
-Because this initial question of the project is focused on the training phase of the experiment, each of the three time-delayed experiments (four, two, one) are essentially identical replicates of each other, and therefore this data can be pooled to increase power. 
+Because this initial question of the project is focused on the training phase of the experiment, each of the three time-delayed experiments (four, two, one) are essentially identical replicates of each other, with transecct included as a fixed effect in the model 
 
 ##Prepping Data 
 
@@ -57,7 +59,7 @@ model <- read.csv(m, header = TRUE, sep = ",")
 head(model)
 
 # count data looses some information that binomial data would provide, but binomial data would likely not work here due to the low overall attack rates 
-# survival analysis likely didn't work with this data because attack rates are too low for this data to be analyzed as binomial data 
+
 ```
 
 Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
@@ -116,9 +118,28 @@ run to models to assess two questions:
 1. did birds learn to avoid facsimiles of the model across four days? 
 2. did birds learn to avoid facsimiles of the control across four days? 
 
-```{r training phase models }
-battus <- subset(model, species == "battus")
-junonia <- subset(model, species == "junonia")
+```{r remove sites with no attacks }
+# remove sites with no attacks to improve model fit to Poisson distribution 
+model_attackbysite <- aggregate(x=model$attacks, by = list(model$field.site), FUN=sum)
+colnames(model_attackbysite) <- c("site", "attacks")
+model_attackbysite_noNA <- subset(model_attackbysite, attacks > 0) 
+attacked_sites <- model_attackbysite_noNA$site
+
+model_reduced_zeros <- subset(model, field.site %in% attacked_sites)
+
+# remake histograms 
+hist(model_reduced_zeros$attacks) # still zero inflated, but better 
+```
+
+```{r models by species}
+# subset data by species 
+battus <- subset(model_reduced_zeros, species == "battus")
+junonia <- subset(model_reduced_zeros, species == "junonia")
+
+# histograms to assess data distribution 
+hist(battus$attacks)
+hist(junonia$attacks)
+
 
 # battus 
 
@@ -138,8 +159,8 @@ mod_junonia <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field
 summary(mod_junonia)
 check_singularity(mod_junonia) 
 Anova(mod_junonia, type = "III") # experiment day not significant 
-
 ```
+
 
 ## Check residuals with "DHARMa" package 
 
@@ -162,16 +183,20 @@ testOutliers(mod2simulation)
 testDispersion(mod2simulation) 
 testZeroInflation(mod2simulation) 
 ```
+
 ## Post Hoc Tests 
-Post Hoc test allows us to compare attacks on each experimental day for each species 
+Post Hoc test allows us to compare attacks on each experimental day for battus  
 
 ```{r mod_battus post hoc}
+# run post hoc test on battus because fitted model showed significant effect of day. 
 
 post_hoc1 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "bonferroni") 
 post_hoc1
 
 post_hoc2 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "scheffe") 
 post_hoc2
+
+# attacks on Junonia did not vary significantly across days 
 ```
 
 # Testing Phase Models 
@@ -181,7 +206,7 @@ Now that we have established that the bird community at the Quabbin Reservoir di
 
 Previous lab work and models of pavlovian learning suggest that predators should be able to retain memory of negative stimuli for long periods of time after that negative stimulus is removed. Here, we are examining how long after a negative stimulus is removed predators in natural environments retain memory of that negative model stimulus & avoid mimics. 
 
-These models aim to statistically assess the following questions: 
+STATISTICAL QUESTIONS: 
 1. Do birds in T4 attack the mimic significantly less than the control? 
 2. Do birds in T2 attack the mimic significatly less than the control? 
 3. Do birds in T1 attack the mimic significantly less than the control? 
@@ -244,11 +269,31 @@ mean(mimic$attacks) # variance is greater than mean, which indicates that over-d
 
 To control for spatial confounds, our models only compare attacks on mimic facsimiles to attacks on control facsimiles within each treatment, not across treatment. 
 
-```{r subset treatments }
-T4 <- subset(mimic, treatment == "four")
-T2 <- subset(mimic, treatment == "two")
-T1 <- subset(mimic, treatment == "one")
-T0 <- subset(mimic, treatment == "zero")
+```{r remove sites with no attacks }
+mimic_attackbysite <- aggregate(x=mimic$attacks, by = list(mimic$field.site), FUN=sum)
+colnames(mimic_attackbysite) <- c("site", "attacks")
+mimic_attackbysite_noNA <- subset(mimic_attackbysite, attacks > 0) 
+attacked_sites <- mimic_attackbysite_noNA$site
+
+mimic_reduced_zeros <- subset(mimic, field.site %in% attacked_sites)
+
+# remake histograms to assess data distribution 
+hist(mimic_reduced_zeros$attacks) # still zero inflated, but better 
+```
+
+```{r subset treatments}
+# subset treatments because we are not comparing across treatments 
+T4 <- subset(mimic_reduced_zeros, treatment == "four")
+T2 <- subset(mimic_reduced_zeros, treatment == "two")
+T1 <- subset(mimic_reduced_zeros, treatment == "one")
+T0 <- subset(mimic_reduced_zeros, treatment == "zero")
+
+# make histograms to assess data distribution by treatment 
+hist(T4$attacks)
+hist(T2$attacks)
+hist(T1$attacks)
+hist(T0$attacks)
+
 ```
 
 ```{r T4 model}
@@ -292,6 +337,7 @@ testOutliers(mod3simulation)
 testDispersion(mod3simulation) 
 testZeroInflation(mod3simulation) 
 ```
+
 ```{r mod_T2}
 mod4simulation <- simulateResiduals(fittedModel = mod_T2, plot = T)
 testUniformity(mod4simulation)
@@ -310,6 +356,72 @@ testZeroInflation(mod5simulation)
 
 ```{r mod_T0}
 mod6simulation <- simulateResiduals(fittedModel = mod_T0, plot = T)
+testUniformity(mod6simulation) # significant deviations from uniformity 
+testOutliers(mod6simulation)
+testDispersion(mod6simulation) 
+testZeroInflation(mod6simulation) 
+```
+
+```{r}
+# correcting for deviaiton from uniformity by removing all sites that experienced zero attacks in testing phase 
+T4_attackbysite <- aggregate(x=T4$attacks, by = list(T4$field.site), FUN=sum)
+colnames(T4_attackbysite) <- c("site", "attacks")
+T4_attackbysite_noNA <- subset(T4_attackbysite, attacks > 0) 
+attacked_sites4 <- T4_attackbysite_noNA$site
+
+T4transformed <- subset(T4, field.site %in% attacked_sites4)
+
+mod_T42 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T4transformed, ziformula=~1, family=poisson) 
+summary(mod_T42)
+check_singularity(mod_T42) 
+Anova(mod_T42, type = "III") 
+
+mod6simulation <- simulateResiduals(fittedModel = mod_T42, plot = T)
+testUniformity(mod6simulation) # significant deviations from uniformity 
+testOutliers(mod6simulation)
+testDispersion(mod6simulation) 
+testZeroInflation(mod6simulation) 
+```
+
+```{r}
+# correcting for deviaiton from uniformity by removing all sites that experienced zero attacks in testing phase 
+T1_attackbysite <- aggregate(x=T1$attacks, by = list(T1$field.site), FUN=sum)
+colnames(T1_attackbysite) <- c("site", "attacks")
+T1_attackbysite_noNA <- subset(T1_attackbysite, attacks > 0) 
+attacked_sites1 <- T1_attackbysite_noNA$site
+
+T1transformed <- subset(T1, field.site %in% attacked_sites1)
+
+mod_T12 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T1transformed, ziformula=~1, family=poisson) 
+summary(mod_T12)
+check_singularity(mod_T12) 
+Anova(mod_T12, type = "III") 
+
+mod6simulation <- simulateResiduals(fittedModel = mod_T12, plot = T)
+testUniformity(mod6simulation) # significant deviations from uniformity 
+testOutliers(mod6simulation)
+testDispersion(mod6simulation) 
+testZeroInflation(mod6simulation) 
+```
+
+```{r}
+# correcting for deviaiton from uniformity by removing all sites that experienced zero attacks in testing phase 
+T0_attackbysite <- aggregate(x=T0$attacks, by = list(T0$field.site), FUN=sum)
+colnames(T0_attackbysite) <- c("site", "attacks")
+T0_attackbysite_noNA <- subset(T0_attackbysite, attacks > 0) 
+attacked_sites <- T0_attackbysite_noNA$site
+
+T0_transformed <- subset(T0, field.site %in% attacked_sites)
+
+mod_T02 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
+                data=T0_transformed, ziformula=~1, family=poisson) 
+summary(mod_T02)
+check_singularity(mod_T02) 
+Anova(mod_T02, type = "III") 
+
+mod6simulation <- simulateResiduals(fittedModel = mod_T02, plot = T)
 testUniformity(mod6simulation) # significant deviations from uniformity 
 testOutliers(mod6simulation)
 testDispersion(mod6simulation) 

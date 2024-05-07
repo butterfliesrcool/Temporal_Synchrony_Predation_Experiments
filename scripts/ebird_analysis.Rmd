@@ -106,14 +106,14 @@ site_coords <- read.csv("quabbin_site_coordinate_data.csv")
 m <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/Quabbin_Model_Data.csv")
 model <- read.csv(m, header = TRUE, sep = ",")
 head(model)
-length(model$treatment)
-type1 <- rep(c("model"),times= length(model$treatment))
+length(model$transect)
+type1 <- rep(c("model"),times= length(model$transect))
 model$type <- type1
 model
 
 #attack totals on models and mimics
-attacks_species<- aggregate(x=model$attacks, by = list(model$species, model$treatment), FUN=sum)
-attacks_species_day <- aggregate(x=model$attacks, by = list(model$species, model$treatment, model$experiment.day), FUN=sum)
+attacks_species<- aggregate(x=model$attacks, by = list(model$species, model$transect), FUN=sum)
+attacks_species_day <- aggregate(x=model$attacks, by = list(model$species, model$transect, model$experiment.day), FUN=sum)
 
 
 
@@ -124,6 +124,10 @@ length(mimic$treatment)
 type2 <- rep(c("mimic"),times= length(mimic$treatment))
 mimic$type <- type2
 mimic
+
+#change column names for model data so they are consistent with mimic data 
+colnames(model) <- c("treatment", "experiment.day", "field.site", "species", "attacks", "field.day", "type")
+
 
 attack_data <- rbind(model, mimic)
 
@@ -248,6 +252,8 @@ attack.dists.inv[1:5, 1:5]
 
 library(ape)
 library(pgirmess)
+citation("pgirmess")
+
 # compute Moran's I autocorrelation coefficient of x with number of attacks and the inversely weighted distance values.  
 moran_i_one <- ape::Moran.I(sum_attacks_by_site_no_treat$attacks, attack.dists.inv)   
 moran_i_one # not significant 
@@ -262,12 +268,12 @@ xy=cbind(sum_attacks_by_site_no_treat$longitude, sum_attacks_by_site_no_treat$la
 # create correlogram
 pgi_cor <- pgirmess::correlog(coords=xy, z=sum_attacks_by_site_no_treat$attacks, 
                               method="Moran", nbclass=30) 
-pgi_cor
+pgi_cor #moran's I statistic table 
 
 # plot correlogram
 plot(pgi_cor)
 
-#We see evidence of positive sptial autocorrelation (clustering) in the correlogram above. One statistically significant coefficient is visible here within the first distance class, at about .02 decimal degrees of distance, approximately 2km. At other distances, Moran’s I value decreases sharply, as well as becoming fairly indistinguishable from a null hypothesis indicating spatial randomness.
+#We see evidence of positive sptial autocorrelation (clustering) in the correlogram above. One statistically significant coefficient is visible here within the first distance class, at about .02 decimal degrees of distance, approximately 2km. At other distances, Moran’s I value decreases sharply, as well as becoming fairly indistinguishable from a null hypothesis indicating spatial randomness. 
 
 #with the exception of directly neighboring sites, sites generally experiment spatial randomness and comparisons across transects are spatially independent 
 
@@ -281,6 +287,52 @@ sites_per_treatment <- aggregate(x=sum_attacks_by_site_no_zero$field.site, by = 
 # number of attacks per transect 
 attacks_per_treatment <- aggregate(x=sum_attacks_by_site_no_zero$attacks, by = list(sum_attacks_by_site_no_zero$treatment), FUN=sum)
 # treatments four, one, and two had more facsimiles so they had more attacks, overall 
+
+# 1.0 decimal degree is approximately equal to 111 km. 
+moran_table <- as.data.frame(pgi_cor)
+
+dist.km <- (moran_table$dist.class)*111
+
+moran_table$dist.km <- dist.km
+moran_table
+
+write.csv(moran_table,file='/Users/abbyrobinson/Desktop/Reviews/moran_table.csv', row.names=FALSE)
+
+## average number of attacks per site 
+attack_data
+
+model
+model_b <- subset(model, species == "battus")
+model_j <- subset(model, species == "junonia")
+
+mimic
+mimic_l <- subset(mimic, species == "limenitis")
+mimic_j <- subset(mimic, species == "junonia")
+
+# sum attacks per species per site (aps = attacks per site)
+aps_bat_train <-  aggregate(x=model_b$attacks, by = list(model_b$field.site), FUN=sum)
+aps_jun_train <-  aggregate(x=model_j$attacks, by = list(model_j$field.site), FUN=sum)
+aps_lim_test <-  aggregate(x=mimic_l$attacks, by = list(mimic_l$field.site), FUN=sum)
+aps_jun_test <-  aggregate(x=mimic_j$attacks, by = list(mimic_j$field.site), FUN=sum)
+
+#remove sites with zero attacks 
+aps_bat_train_noNA <- subset(aps_bat_train, x > 0) 
+aps_jun_train_noNA <- subset(aps_jun_train, x > 0) 
+aps_lim_test_noNA <- subset(aps_lim_test, x > 0) 
+aps_jun_test_noNA <- subset(aps_jun_test, x > 0) 
+
+# calculate average number of attacks per site 
+aps_train <-  aggregate(x=model$attacks, by = list(model$field.site), FUN=sum)
+aps_train_noNA <- subset(aps_train, x > 0) 
+mean(aps_train_noNA$x) #1.94
+
+aps_test <-  aggregate(x=mimic$attacks, by = list(mimic$field.site), FUN=sum)
+aps_test_noNA <- subset(aps_test, x > 0) 
+mean(aps_test_noNA$x) #1.76
+
+# calculate average number of attacks per species per site 
+mean(aps_bat_train$x)
+
 
 ```
 
@@ -649,6 +701,7 @@ str(bird_diversity_data_expt2)
 bird_diversity_data_expt2[is.na(bird_diversity_data_expt2)] <- 0
 
 library(vegan)
+citation("vegan")
 #source: https://rpubs.com/an-bui/vegan-cheat-sheet
 
 # replication in data: run analysis on treatment type, not day 
@@ -659,7 +712,6 @@ library(vegan)
 shannondiv <- diversity(bird_diversity_data_expt2, index = "shannon")
 sppdiv_aov <- aov(shannondiv ~ treatment_numeric, data = bird_diversity_data_expt2) # analysis of variance on shannon diversity index 
 summary(sppdiv_aov) 
-#no significant differences in species richness or diversity between the four treatments 
 ```
 
 ```{r loop function}
@@ -744,6 +796,7 @@ mass_insectivores
 # quabbin is ideal habitat - no reason to expect birds not to be present, since quabbin is within their home range 
 library(sp)
 library(adehabitatHR)
+citation("adehabitatHR")
 library(sf)
 library(maps)
 
@@ -1028,7 +1081,12 @@ bird_map <- ggplot() +
   geom_polygon( data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) +
   geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0) + 
   coord_sf(xlim = c(-81.028625, -66.372864), ylim = c(38.974222, 47.781672)) +
-  theme_classic()
+  theme_classic() + 
+  guides(color = guide_legend(title = "Insectivorous Birds Species", ncol=2)) + 
+  theme(
+    text = element_text(size = 18), 
+    legend.text = element_text(face = "italic"), 
+    legend.title = element_text(face = "bold"))
 
 bird_map
 
