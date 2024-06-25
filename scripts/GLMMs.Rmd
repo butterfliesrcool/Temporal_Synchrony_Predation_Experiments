@@ -65,33 +65,19 @@ head(model)
 Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
 
 ```{r check data type}
-# make field.day variable factor
-class(model$field.day) 
-model$field.day <- as.factor(model$field.day)
-class(model$field.day)
+# check data structure 
+str(model)
 
-# make experiment.day variable factor
-class(model$experiment.day) 
-model$experiment.day <- as.factor(model$experiment.day)
-class(model$experiment.day)
-
-# make site variable factor 
-class(model$field.site)
-model$field.site <- as.factor(model$field.site)
-class(model$field.site)
-
-# make sure attack variable is integer 
-class(model$attacks) 
-
-# make species variable factor 
-class(model$species)
-model$species <- as.factor(model$species)
-class(model$species)
-
-# make transect variable factor 
-class(model$transect)
 model$transect <- as.factor(model$transect)
-class(model$transect)
+
+model$experiment.day <- factor(model$experiment.day, order = TRUE, levels = c("1", "2", "3", "4"))
+
+model$field.day <- as.factor(model$field.day)
+
+model$field.site <- as.factor(model$field.site)
+
+str(model)
+
 ```
 
 ## Visualize Data 
@@ -144,21 +130,77 @@ hist(junonia$attacks)
 # battus 
 
 # we include transect as a fixed effect in this model to assess the effect of space and time on attack rates 
-mod_battus <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), 
+mod_battus <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), #if we include both site and field day in the model, they have to be coded this way because of the experimental design 
                 data = battus, ziformula=~1, family=poisson) 
 summary(mod_battus)
-check_singularity(mod_battus) 
-Anova(mod_battus, type = "III") # significant effect of experiment day 
+
+##both site and field day have very low varience, which means these might not be meaningful random effects 
+
+d1 <- diagnose(mod_battus) # model is not converging 
+
+# model does not converge with random effects - random effects are likely too small, making the model overparameterized - remove all random effects 
+mod_battus2 <- glmmTMB(attacks ~ experiment.day + transect, 
+                data = battus, ziformula=~1, family=poisson) 
+summary(mod_battus2)
+check_singularity(mod_battus2) #no singularity issues 
+Anova(mod_battus2, type = "III") # significant effect of experiment day 
 # no effect of transect (space & time) 
+
+
+#try model with just site as random effect 
+mod_battus3 <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site), 
+                data = battus, ziformula=~1, family=poisson) 
+summary(mod_battus3)
+check_singularity(mod_battus3) #still have singularity issues 
+Anova(mod_battus3, type = "III") #significance hasn't changed 
+
+#try model with just field day as random effect 
+mod_battus4 <- glmmTMB(attacks ~ experiment.day + transect + (1|field.day), 
+                data = battus, ziformula=~1, family=poisson) 
+summary(mod_battus4)
+check_singularity(mod_battus4) #still have singularity issues 
+Anova(mod_battus4, type = "III")
+
+#compare model fit with likelihood ratio test
+anova(mod_battus2, mod_battus3, mod_battus4) # models are not significantly different - let's go with the one that does not include random effects beecause its the only one that didn't have singularity issues 
 
 # junonia (control) 
 
 mod_junonia <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), 
                 data = junonia, ziformula=~1, family=poisson) 
-
 summary(mod_junonia)
-check_singularity(mod_junonia) 
-Anova(mod_junonia, type = "III") # experiment day not significant 
+check_singularity(mod_junonia) #singularity issues 
+Anova(mod_junonia, type = "III")
+
+#both site and field day have very low varience, which means these might not be meaningful random effects 
+
+#try model with no random effects 
+mod_junonia2 <- glmmTMB(attacks ~ experiment.day + transect, 
+                data = junonia, ziformula=~1, family=poisson) 
+
+summary(mod_junonia2)
+check_singularity(mod_junonia2) #no singularity issues 
+#we should go with model mod_junonia2 because this one does not have singularity issues 
+Anova(mod_junonia2, type = "III") # experiment day not significant 
+
+
+#try model with just site as a random effect 
+mod_junonia3 <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site), 
+                data = junonia, ziformula=~1, family=poisson) 
+summary(mod_junonia3)
+check_singularity(mod_junonia3) #singularity issues 
+Anova(mod_junonia3, type = "III")
+
+#try model with just field day as a random effect
+mod_junonia4 <- glmmTMB(attacks ~ experiment.day + transect + (1|field.day), 
+                data = junonia, ziformula=~1, family=poisson) 
+summary(mod_junonia4)
+check_singularity(mod_junonia4) #singularity issues 
+Anova(mod_junonia4, type = "III")
+
+
+anova(mod_junonia, mod_junonia2, mod_junonia3, mod_junonia4) 
+## model 4 is significantly different - is this better or worse? 
 ```
 
 
@@ -190,11 +232,9 @@ Post Hoc test allows us to compare attacks on each experimental day for battus
 ```{r mod_battus post hoc}
 # run post hoc test on battus because fitted model showed significant effect of day. 
 
-post_hoc1 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "bonferroni") 
-post_hoc1
-
-post_hoc2 <- emmeans(mod_battus, pairwise ~ experiment.day, p.adjust = "scheffe") 
-post_hoc2
+EMM <- emmeans(mod_battus2, ~ experiment.day)   # where treat has 2 levels
+pairs(EMM) # no p value correction 
+pairs(EMM, adjust = "bonferroni") # bonferroni p-value adjustment for planned comparisons 
 
 # attacks on Junonia did not vary significantly across days 
 ```
@@ -225,33 +265,17 @@ head(mimic)
 Making sure R is "reading" the variables field.day, experiment.day, field.site, species, and treatment at factors. Attacks variable should be an integer value 
 
 ```{r check data type}
-# make experimental.day variable factor 
-class(mimic$experiment.day) 
-mimic$experiment.day <- as.factor(mimic$experiment.day)
-class(mimic$experiment.day)
+# check data structure 
+str(mimic)
+mimic$treatment <- factor(mimic$treatment, order = TRUE, levels = c("zero", "one", "two", "four"))
 
-# make field.day variable factor
-class(mimic$field.day) 
+mimic$experiment.day <- factor(mimic$experiment.day, order = TRUE, levels = c("1", "2", "3", "4"))
+
 mimic$field.day <- as.factor(mimic$field.day)
-class(mimic$field.day)
 
-# make site variable factor 
-class(mimic$field.site)
 mimic$field.site <- as.factor(mimic$field.site)
-class(mimic$field.site)
 
-# make sure attack variable is integer 
-class(mimic$attacks) # only thing that should be an integer 
-
-# make species variable factor 
-class(mimic$species)
-mimic$species <- as.factor(mimic$species)
-class(mimic$species)
-
-# make treatment variable factor 
-class(mimic$treatment)
-mimic$treatment <- as.factor(mimic$treatment)
-class(mimic$treatment)
+str(mimic)
 ```
 
 ## Visualize Data 
@@ -300,16 +324,64 @@ hist(T0$attacks)
 mod_T4 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
                 data=T4, ziformula=~1, family=poisson) 
 summary(mod_T4)
-check_singularity(mod_T4) 
+check_singularity(mod_T4) #singularity issue 
 Anova(mod_T4, type = "III") # not significant 
+
+#remove field site as random effect (it has the lowest variance)
+mod_T4_2 <- glmmTMB(attacks ~ species  + (1|field.day),
+                data=T4, ziformula=~1, family=poisson) 
+summary(mod_T4_2)
+check_singularity(mod_T4_2) #false 
+Anova(mod_T4_2, type = "III") 
+
+# remove field day as random effect 
+mod_T4_3 <- glmmTMB(attacks ~ species  + (1|field.site),
+                data=T4, ziformula=~1, family=poisson) # model does not converge 
+summary(mod_T4_3)
+check_singularity(mod_T4_3) #true 
+Anova(mod_T4_3, type = "III") 
+
+# remove both random effects 
+mod_T4_4 <- glmmTMB(attacks ~ species,
+                data=T4, ziformula=~1, family=poisson) 
+summary(mod_T4_4)
+check_singularity(mod_T4_4) #false 
+Anova(mod_T4_4, type = "III") 
+
+anova(mod_T4, mod_T4_2, mod_T4_4) # no significant difference between models. Model without random effects has the lowest AIC score 
 ```
 
 ```{r T2 model}
 mod_T2 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
                 data=T2, ziformula=~1, family=poisson) 
-summary(mod_T2)
-check_singularity(mod_T2) 
+summary(mod_T2) # model convergence problem 
+check_singularity(mod_T2) #false 
 Anova(mod_T2, type = "III") # not significant 
+
+# remove field day random effect 
+mod_T2_2 <- glmmTMB(attacks ~ species + (1|field.site),
+                data=T2, ziformula=~1, family=poisson) 
+summary(mod_T2_2) # convergence problem resolved 
+check_singularity(mod_T2_2) # no singularity issues 
+Anova(mod_T2_2, type = "III") # not significant 
+
+# remove field site random effect 
+mod_T2_3 <- glmmTMB(attacks ~ species + (1|field.day),
+                data=T2, ziformula=~1, family=poisson) 
+summary(mod_T2_3) # convergence problem resolved 
+check_singularity(mod_T2_3) # no singularity issues 
+Anova(mod_T2_3, type = "III")
+
+# remove both random effects 
+mod_T2_4 <- glmmTMB(attacks ~ species,
+                data=T2, ziformula=~1, family=poisson) 
+summary(mod_T2_4) # convergence problem resolved 
+check_singularity(mod_T2_4) # no singularity issues 
+Anova(mod_T2_4, type = "III")
+
+#likelihood ratio test 
+anova(mod_T2_2, mod_T2_3, mod_T2_4)
+# model 3 is significantly better - lower AIC and lower deviance 
 ```
 
 ```{r T1 model}
@@ -318,14 +390,66 @@ mod_T1 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
 summary(mod_T1)
 check_singularity(mod_T1) 
 Anova(mod_T1, type = "III") # not significant 
+
+## Model looks good and there are no singularity issues, but variance for the random effects is still vary low. Let's see if removing the random effects improves the model
+
+#removing both random effects 
+mod_T1_2 <- glmmTMB(attacks ~ species,
+                data=T1, ziformula=~1, family=poisson) 
+summary(mod_T1_2)
+check_singularity(mod_T1_2) #false
+Anova(mod_T1_2, type = "III") 
+
+#removing just field site
+mod_T1_3 <- glmmTMB(attacks ~ species + (1|field.day),
+                data=T1, ziformula=~1, family=poisson)  #model does not converge 
+summary(mod_T1_3)
+check_singularity(mod_T1_3) #true 
+Anova(mod_T1_3, type = "III")
+
+#removing just field day 
+mod_T1_4 <- glmmTMB(attacks ~ species + (1|field.site),
+                data=T1, ziformula=~1, family=poisson) #model does not converge 
+summary(mod_T1_4)
+check_singularity(mod_T1_4) $true 
+Anova(mod_T1_4, type = "III") 
+
+anova(mod_T1, mod_T1_2) #no significant difference between models 1 and 2, but we have to either keep both random effects or remove both 
 ```
 
 ```{r T0 model}
+
 mod_T0 <- glmmTMB(attacks ~ species + (1|field.site) + (1|field.day),
                 data=T0, ziformula=~1, family=poisson) 
 summary(mod_T0)
-check_singularity(mod_T0) 
+check_singularity(mod_T0) # singular 
 Anova(mod_T0, type = "III") # significant effect of species 
+
+# model looks good, but variance of random effects is very low and model has singularity issues, so lets see what happens when we remove some random effects 
+
+#remove field day 
+mod_T0_2 <- glmmTMB(attacks ~ species + (1|field.site),
+                data=T0, ziformula=~1, family=poisson) 
+summary(mod_T0_2)
+check_singularity(mod_T0_2) #true
+Anova(mod_T0_2, type = "III")
+
+#remove field site 
+mod_T0_3 <- glmmTMB(attacks ~ species + (1|field.day),
+                data=T0, ziformula=~1, family=poisson) 
+summary(mod_T0_3)
+check_singularity(mod_T0_3) #true
+Anova(mod_T0_3, type = "III")
+
+#remove both 
+mod_T0_4 <- glmmTMB(attacks ~ species,
+                data=T0, ziformula=~1, family=poisson) 
+summary(mod_T0_4)
+check_singularity(mod_T0_4) #false 
+Anova(mod_T0_4, type = "III")
+
+anova(mod_T0, mod_T0_2, mod_T0_3, mod_T0_4)
+# why is model 3 significant? model 4 has the lowest AIC and is the only one without singularity issues 
 ```
 
 ## check residuals 
@@ -530,20 +654,26 @@ junonia_plot_data
 ### Battus philenor Figure 
 
 ```{r B.pilenor figure}
-p_value <- tibble(
-  x = c("1", "1", "3", "3"),
-  y = c(24, 25, 25, 23)
+p_value2 <- tibble(
+  x = c("1", "1", "2", "2"),
+  y = c(22, 23, 23, 6)
 )
 
-p_value2 <- tibble(
-  x = c("2", "2", "4", "4"),
-  y = c(22, 23, 23, 22)
+p_value3 <- tibble(
+  x = c("1", "1", "3", "3"),
+  y = c(23.5, 24.5, 24.5, 6)
 )
+
+p_value4 <- tibble(
+  x = c("1", "1", "4", "4"),
+  y = c(25, 26, 26, 5)
+)
+
 
 b.plot <- ggplot(battus_plot_data) + 
 
   geom_bar( aes(Day, Attacked), stat="identity", fill="grey70", width=1) + 
-  ylim(0,25) +  xlab("Day") +  ylab("Facsimiles Attacked") + 
+  ylim(0,26) +  xlab("Day") +  ylab("Facsimiles Attacked") + 
   geom_text(aes(x=Day, y=Attacked, label = Attacked), vjust = -1) +
   ggtitle(expression(bolditalic("Battus philenor"))) + 
   geom_errorbar( aes(x=Day, ymin=Attacked-SD, ymax=Attacked+SD), width=0.2, size=0.7) + 
@@ -552,25 +682,57 @@ b.plot <- ggplot(battus_plot_data) +
          plot.title = element_text(hjust = 0.5, size=17), 
          axis.title = element_text(size = 15), 
          axis.text = element_text(size = 15)) + 
-  geom_line(data = p_value, 
-            aes(x = x, y = y, group = 1)) +
   geom_line(data = p_value2, 
-            aes(x = x, y = y, group = 1)) 
+            aes(x = x, y = y, group = 1)) +
+  geom_line(data = p_value3, 
+            aes(x = x, y = y, group = 1)) + 
+  geom_line(data = p_value4, 
+            aes(x = x, y = y, group = 1)) + 
+  geom_text(x=1.6, y=23.75, label="P=0.0131*") +
+  geom_text(x=2, y=25.25, label="P=0.0131*") +
+  geom_text(x=2.5, y=26.75, label="P=0.0114*") 
+  
 b.plot 
 ```
 
 ### Junonia coenia Figure 
 
 ```{r J.coenia figure}
+p_value2j <- tibble(
+  x = c("1", "1", "2", "2"),
+  y = c(18, 19, 19, 12)
+)
+
+p_value3j <- tibble(
+  x = c("1", "1", "3", "3"),
+  y = c(19.5, 20.5, 20.5, 7)
+)
+
+p_value4j <- tibble(
+  x = c("1", "1", "4", "4"),
+  y = c(21, 22, 22, 11)
+)
+
+
 j.plot <- ggplot(junonia_plot_data) +
-     geom_bar( aes(Day, Attacked), stat="identity", fill="gray35", width=1) + 
-     ylim(0,25) +  xlab("Day") +  ylab("Facsimiles Attacked") +
-     geom_text(aes(x=Day, y=Attacked, label = Attacked), vjust = -1) +
-     ggtitle(expression(bolditalic("Junonia coenia "))) +
-     geom_errorbar( aes(x=Day, ymin=Attacked-SD, ymax=Attacked+SD), width=0.2, size=0.5) + 
-     theme_classic() + theme( aspect.ratio = 4/3, 
-                              plot.title = element_text(hjust = 0.5, size=17), 
-                              axis.title = element_text(size = 15), axis.text = element_text(size = 15)) 
+  geom_bar( aes(Day, Attacked), stat="identity", fill="gray35", width=1) + 
+  ylim(0,26) +  xlab("Day") +  ylab("Facsimiles Attacked") +
+  geom_text(aes(x=Day, y=Attacked, label = Attacked), vjust = -1) +
+  ggtitle(expression(bolditalic("Junonia coenia "))) +
+  geom_errorbar( aes(x=Day, ymin=Attacked-SD, ymax=Attacked+SD), width=0.2, size=0.5) + 
+  theme_classic() + 
+  theme( aspect.ratio = 4/3, 
+         plot.title = element_text(hjust = 0.5, size=17), 
+         axis.title = element_text(size = 15), axis.text = element_text(size = 15)) +
+  geom_line(data = p_value2j, 
+            aes(x = x, y = y, group = 1)) +
+  geom_line(data = p_value3j, 
+            aes(x = x, y = y, group = 1)) + 
+  geom_line(data = p_value4j, 
+            aes(x = x, y = y, group = 1)) + 
+  geom_text(x=1.5, y=19.75, label="n.s.") +
+  geom_text(x=2, y=21.25, label="n.s.") +
+  geom_text(x=2.5, y=22.75, label="n.s.") 
 j.plot 
 ```
 
@@ -591,7 +753,7 @@ figure = b.plot + j.plot
 
 figure
 
-ggsave(figure, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/learning_figure.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
+ggsave(figure, file = "/Users/abbyrobinson/Desktop/Reviews/learning_figure.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
 
 ```
 

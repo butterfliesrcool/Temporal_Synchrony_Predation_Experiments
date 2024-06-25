@@ -674,7 +674,7 @@ ggsave(community_bubble_plot, file = "/Users/abbyrobinson/Desktop/Reviews/commun
 ```
 
 
-```{r community diversity index}
+```{r shannon diversity index}
 species_counts_by_day2 
 species_counts_by_day2[is.na(species_counts_by_day2)] <- 0
 
@@ -686,7 +686,6 @@ bird_diversity_data <- spread(species_counts_by_day2, key=species, value=observa
 bird_diversity_data[is.na(bird_diversity_data)] <- 0
 bird_diversity_data
 
-#remove julian day column so data is compatible with simpson_unb function
 bird_diversity_data
 bird_diversity_data_rich <- subset(bird_diversity_data, select = -c(treatment, treatment_numeric) )
 bird_diversity_data_rich[is.na(bird_diversity_data_rich)] <- 0
@@ -713,6 +712,74 @@ shannondiv <- diversity(bird_diversity_data_expt2, index = "shannon")
 sppdiv_aov <- aov(shannondiv ~ treatment_numeric, data = bird_diversity_data_expt2) # analysis of variance on shannon diversity index 
 summary(sppdiv_aov) 
 ```
+
+
+```{r bray curtis index}
+## account for effort by dividing by total number of observers 
+species_counts_by_day2
+observers_by_day
+#merge 
+species_count_with_effort <- merge(species_counts_by_day2, observers_by_day, by="julian_day", all.x = TRUE, all.y = FALSE)
+
+## divide observation count by number of observers 
+observation_count_transformed <- species_count_with_effort$observation_count/species_count_with_effort$observers
+
+species_count_with_effort$observation_count_transformed <- observation_count_transformed
+
+#clean up our data frame - remove columns that we don't need 
+species_count_with_effort_clean <- subset(species_count_with_effort, select = -c(observation_count, treatment_numeric, observers) )
+
+#spread species column across multiple columns
+bird_diversity_data <- spread(species_count_with_effort_clean, 
+                              key=species, 
+                              value=observation_count_transformed)
+
+bird_diversity_data[is.na(bird_diversity_data)] <- 0
+bird_diversity_data
+
+bird_diversity_data_only_expt <- subset(bird_diversity_data, treatment %in% c("four", "two", "one", "zero"))
+
+dist_dml <- vegdist(x=as.matrix(bird_diversity_data_only_expt[,3:44]), method="bray", binary=FALSE, diag=TRUE, upper=TRUE, na.rm=FALSE)
+
+adonis2(dist_dml ~ treatment, data=bird_diversity_data_only_expt, permutations=999, method="bray")
+
+```
+
+```{r bubble plot with transformed effort}
+
+community_bubble_plot_effort <- 
+ggplot(data = species_count_with_effort, 
+       aes(x=julian_day, y=species, size=observation_count_transformed, fill=treatment)) +
+  geom_point(alpha=0.5, shape=21, color="black") +
+  scale_size(range = c(1, 25), name= "Observation Count (controled for effort)") +
+  scale_fill_manual(guide="legend", name = "Treatment", 
+                    breaks = c("four", "two", "one", "zero", "NA"), 
+                    values = c("lightblue3","royalblue2","navyblue", "red3", "grey30"), 
+                    labels = c("T4 Traning Phase", "T2 Training Phase", "T1 Training Phase", "T0 + All Testing Phases", "NA")) + 
+  annotate("text", x = 141:177, y = 44, label = effort$observers) + 
+  annotate("text", x = 141:177, y = 43, label = effort$observation_count) + 
+  annotate("text", x = 159, y = 45, label = "Effort", size = 7, fontface = "bold") +
+  ylab("Species") +
+  xlab("Julian Day") + 
+  expand_limits(y = c(0, 46)) +
+  scale_x_continuous(breaks = seq(141, 177, 1)) +
+  theme_bw() + 
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(), 
+    text = element_text(size = 18), 
+    axis.text.y = element_text(face = "italic"), 
+    axis.title.y = element_text(face = "bold"), 
+    axis.title.x = element_text(face = "bold"), 
+    legend.title = element_text(face = "bold")
+  )
+
+community_bubble_plot_effort
+
+ggsave(community_bubble_plot_effort, file = "/Users/abbyrobinson/Desktop/Reviews/community_bubble_plot_effort.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
 
 ```{r loop function}
 ##make loop function to plot observations for all species 
