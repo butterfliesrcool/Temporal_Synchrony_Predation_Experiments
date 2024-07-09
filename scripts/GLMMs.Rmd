@@ -162,14 +162,14 @@ check_singularity(mod_battus4) #still have singularity issues
 Anova(mod_battus4, type = "III")
 
 #compare model fit with likelihood ratio test
-anova(mod_battus2, mod_battus3, mod_battus4) # models are not significantly different - let's go with the one that does not include random effects beecause its the only one that didn't have singularity issues 
+anova(mod_battus, mod_battus2, mod_battus3, mod_battus4) # models are not significantly different - let's go with the one that does not include random effects beecause its the only one that didn't have singularity issues 
 
 # junonia (control) 
 
 mod_junonia <- glmmTMB(attacks ~ experiment.day + transect + (1|field.site/field.day), 
                 data = junonia, ziformula=~1, family=poisson) 
 summary(mod_junonia)
-check_singularity(mod_junonia) #singularity issues 
+check_singularity(mod_junonia)#singularity issues 
 Anova(mod_junonia, type = "III")
 
 #both site and field day have very low varience, which means these might not be meaningful random effects 
@@ -348,7 +348,7 @@ summary(mod_T4_4)
 check_singularity(mod_T4_4) #false 
 Anova(mod_T4_4, type = "III") 
 
-anova(mod_T4, mod_T4_2, mod_T4_4) # no significant difference between models. Model without random effects has the lowest AIC score 
+anova(mod_T4, mod_T4_2, mod_T4_3, mod_T4_4) # no significant difference between models. Model without random effects has the lowest AIC score 
 ```
 
 ```{r T2 model}
@@ -380,7 +380,7 @@ check_singularity(mod_T2_4) # no singularity issues
 Anova(mod_T2_4, type = "III")
 
 #likelihood ratio test 
-anova(mod_T2_2, mod_T2_3, mod_T2_4)
+anova(mod_T2, mod_T2_2, mod_T2_3, mod_T2_4)
 # model 3 is significantly better - lower AIC and lower deviance 
 ```
 
@@ -411,10 +411,10 @@ Anova(mod_T1_3, type = "III")
 mod_T1_4 <- glmmTMB(attacks ~ species + (1|field.site),
                 data=T1, ziformula=~1, family=poisson) #model does not converge 
 summary(mod_T1_4)
-check_singularity(mod_T1_4) $true 
+check_singularity(mod_T1_4) #true 
 Anova(mod_T1_4, type = "III") 
 
-anova(mod_T1, mod_T1_2) #no significant difference between models 1 and 2, but we have to either keep both random effects or remove both 
+anova(mod_T1, mod_T1_2, mod_T1_3, mod_T1_4) #no significant difference between models 1 and 2, but we have to either keep both random effects or remove both 
 ```
 
 ```{r T0 model}
@@ -688,9 +688,9 @@ b.plot <- ggplot(battus_plot_data) +
             aes(x = x, y = y, group = 1)) + 
   geom_line(data = p_value4, 
             aes(x = x, y = y, group = 1)) + 
-  geom_text(x=1.6, y=23.75, label="P=0.0131*") +
-  geom_text(x=2, y=25.25, label="P=0.0131*") +
-  geom_text(x=2.5, y=26.75, label="P=0.0114*") 
+  geom_text(x=1.6, y=23.75, label="P=0.0117*") +
+  geom_text(x=2, y=25.25, label="P=0.0117*") +
+  geom_text(x=2.5, y=26.75, label="P=0.0103*") 
   
 b.plot 
 ```

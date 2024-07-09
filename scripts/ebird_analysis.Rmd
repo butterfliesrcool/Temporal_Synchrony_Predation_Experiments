@@ -9,6 +9,10 @@ output: html_document
 ## creating the dataset 
 packages 
 ```{r load packages}
+
+# install.packages("devtools")
+devtools::install_github("ahhurlbert/aviandietdb")
+
 library(lubridate)
 library(ggplot2)
 library(devtools)
@@ -776,7 +780,7 @@ ggplot(data = species_count_with_effort,
 
 community_bubble_plot_effort
 
-ggsave(community_bubble_plot_effort, file = "/Users/abbyrobinson/Desktop/Reviews/community_bubble_plot_effort.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+ggsave(community_bubble_plot_effort, file = "/Users/abbyrobinson/Desktop/Reviews/community_bubble_plot_effort.pdf", width=25, height=10, units=c("in"), useDingbats=FALSE)
 
 ```
 
