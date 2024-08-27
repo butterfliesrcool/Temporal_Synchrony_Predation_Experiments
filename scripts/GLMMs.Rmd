@@ -76,7 +76,11 @@ model$field.day <- as.factor(model$field.day)
 
 model$field.site <- as.factor(model$field.site)
 
+model$attacks <- as.numeric(model$attacks)
+
 str(model)
+
+
 
 ```
 
@@ -203,6 +207,33 @@ anova(mod_junonia, mod_junonia2, mod_junonia3, mod_junonia4)
 ## model 4 is significantly different - is this better or worse? 
 ```
 
+##compare with negative binomial model 
+```{r}
+battus
+d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/Quabbin_GIS_Data.csv")
+map <- read.csv(d, header = TRUE, sep = ",")
+head(map)
+
+lat <- subset(map, select = c(site, latitude) )
+colnames(lat) <- c("field.site", "latitude")
+head(lat)
+battus_lat <- merge(battus, lat, by="field.site", all.x = TRUE)
+
+fit_nbinom2 <- update(mod_battus2, correlation = corExp(form = ~Lon_x + Lat_y, nugget=T))
+
+## trying to control for spatial autocorrelation in the model 
+exponential.autocor <- update(mod_battus2,family=nbinom2)
+  
+  gls( log(Bird_diversity + 1) ~ log(Tree_diversity + 1) , correlation = corExp(form = ~Lon_x + Lat_y, nugget=T), data = bird.diversity )
+
+gaussian.autocor <- gls( log(Bird_diversity + 1) ~ log(Tree_diversity + 1) , correlation = corGaus(form = ~Lon_x + Lat_y, nugget=T), data = bird.diversity )
+
+spherical.autocor <- gls( log(Bird_diversity + 1) ~ log(Tree_diversity + 1) , correlation = corSpher(form = ~Lon_x + Lat_y, nugget=T), data = bird.diversity )
+
+linear.autocor <- gls( log(Bird_diversity + 1) ~ log(Tree_diversity + 1) , correlation = corLin(form = ~Lon_x + Lat_y, nugget=T), data = bird.diversity )
+
+ratio.autocor <- gls( log(Bird_diversity + 1) ~ log(Tree_diversity + 1) , correlation = corRatio(form = ~Lon_x + Lat_y, nugget=T), data = bird.diversity )
+```
 
 ## Check residuals with "DHARMa" package 
 
