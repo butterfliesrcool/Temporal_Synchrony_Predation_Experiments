@@ -214,12 +214,22 @@ d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony
 map <- read.csv(d, header = TRUE, sep = ",")
 head(map)
 
-lat <- subset(map, select = c(site, latitude) )
-colnames(lat) <- c("field.site", "latitude")
-head(lat)
-battus_lat <- merge(battus, lat, by="field.site", all.x = TRUE)
+lat_long <- subset(map, select = c(site, latitude, longitude) )
+colnames(lat_long) <- c("field.site", "latitude", "longitude")
+head(lat_long)
+battus_lat_long <- merge(battus, lat_long, by="field.site", all.x = TRUE)
 
-fit_nbinom2 <- update(mod_battus2, correlation = corExp(form = ~Lon_x + Lat_y, nugget=T))
+mod_battus2 <- glmmTMB(attacks ~ experiment.day + transect, 
+                data = battus_lat_long, ziformula=~1, family=poisson) 
+summary(mod_battus2)
+check_singularity(mod_battus2) #no singularity issues 
+Anova(mod_battus2, type = "III") # significant effect of experiment day 
+# no effect of transect (space & time) 
+
+battus_lat_long$pos <- numFactor(battus_lat_long$longitude, battus_lat_long$latitude)
+battus_lat_long$group <- factor(rep(1, nrow(battus_lat_long)))
+
+fit_spatial_cor <- update(mod_battus2, exp(pos + 0 | group))
 
 ## trying to control for spatial autocorrelation in the model 
 exponential.autocor <- update(mod_battus2,family=nbinom2)
