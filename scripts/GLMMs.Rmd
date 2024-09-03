@@ -107,6 +107,9 @@ run model  to assess two questions:
 2. did birds learn to avoid facsimiles of the control across four days? 
 
 ```{r merge with site GPS coordinates}
+
+## source for spatial corelation correction in model: https://cran.r-project.org/web/packages/glmmTMB/vignettes/covstruct.html
+
 d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/Quabbin_GIS_Data.csv")
 map <- read.csv(d, header = TRUE, sep = ",")
 head(map)
