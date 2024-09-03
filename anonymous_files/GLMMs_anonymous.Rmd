@@ -1,8 +1,7 @@
 ---
 title: "Is temporal synchrony necessary for effective Batesian mimicry?"
-author: "Abby Robinson"
-date: "12/16/2022"
 output: html_document
+date: "2024-07-11"
 ---
 
 # Packages
@@ -54,7 +53,7 @@ Because this initial question of the project is focused on the training phase of
 Load data from GitHub repo using "curl()" command 
 
 ```{r pull model data}
-m <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/Quabbin_Model_Data.csv")
+m <- curl(".../data/Quabbin_Model_Data.csv")
 model <- read.csv(m, header = TRUE, sep = ",")
 head(model)
 
@@ -107,7 +106,7 @@ run model  to assess two questions:
 2. did birds learn to avoid facsimiles of the control across four days? 
 
 ```{r merge with site GPS coordinates}
-d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/Quabbin_GIS_Data.csv")
+d <- curl(".../data/Quabbin_GIS_Data.csv")
 map <- read.csv(d, header = TRUE, sep = ",")
 head(map)
 
@@ -201,7 +200,7 @@ STATISTICAL QUESTIONS:
 Load data file from GitHub repo
 
 ```{r pull mimic data }
-c <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/Quabbin_Mimic_Data.csv")
+c <- curl(".../data/predation_data/Quabbin_Mimic_Data.csv")
 mimic <- read.csv(c, header = TRUE, sep = ",")
 head(mimic)
 ```
@@ -313,7 +312,7 @@ pairs(EMM2, adjust = "bonferroni")
 #synchronous treatment analysis with battus data 
 #it is unnecessary to run a full model for this since we are simply comparing counts across three groups. Random affects of site and spatial and temporal confounds are not relevant here because all three species were placed in the exact same sites on the exact same days. 
 
-s <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/predation_data/synch_treatment_data.csv")
+s <- curl(".../data/predation_data/synch_treatment_data.csv")
 synch_treatment_data <- read.csv(s, header = TRUE, sep = ",")
 
 #use aggregate function to get the total number of attacks for each species from synch_treatment_data
@@ -866,7 +865,7 @@ ggsave(figure, file = "/Users/abbyrobinson/Desktop/Reviews/learning_figure.pdf",
 ## Quabbin Reservior Transect Map 
 
 ```{r load GIS data for map}
-d <- curl("https://raw.githubusercontent.com/butterfliesrcool/Temporal_Synchrony_Predation_Experiments/main/data/Quabbin_GIS_Data.csv")
+d <- curl(".../data/Quabbin_GIS_Data.csv")
 map <- read.csv(d, header = TRUE, sep = ",")
 head(map)
 ```
@@ -899,7 +898,7 @@ quab.map <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
                                 values = c(17, 16, 15, 18), 
                                 labels = c("Transect 1", "Transect 2", "Transect 3", "Transect 4"))
 quab.map
-ggsave(quab.map, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/quab.map.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
+ggsave(quab.map, file = ".../quab.map.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
 
 ```
 
@@ -1191,7 +1190,7 @@ fig[[4]] = fig[[4]] + theme(axis.title.y = element_blank(),
 attack.fig <- fig + plot_layout(nrow=1)
 attack.fig
 
-ggsave(attack.fig, file = "/Users/abbyrobinson/Desktop/Temporal Dynamics Project/attack_fig.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
+ggsave(attack.fig, file = ".../attack_fig.pdf", width=8, height=8, units=c("in"), useDingbats=FALSE)
 
 ```
 

@@ -1,0 +1,1192 @@
+---
+title: "ebird_analysis"
+date: "2024-02-07"
+output: html_document
+---
+# ebird analysis to address spatial and temporal confounds of model-first occurrence/ temporal synchrony field experiments 
+
+## creating the dataset 
+packages 
+```{r load packages}
+
+# install.packages("devtools")
+devtools::install_github("ahhurlbert/aviandietdb")
+
+library(lubridate)
+library(ggplot2)
+library(devtools)
+library(aviandietdb) #bird diet database 
+library(sf)
+library(spData)
+library(sp) 
+library(maps)
+library(curl)
+library(randomcoloR)
+library(gridtext)
+library(patchwork)
+library(curl)
+library(ggspatial)
+library(ggmap)
+library(googleway)
+library("rstudioapi")
+```
+
+data was downloaded from ebird on 2-7-2024 from the 3 counties surrounding the quabbin reservoir 
+```{r filter quabbin dataframe}
+setwd("...")
+franklin_MA <- read.csv("ebird_franklin_2020_2022.csv")
+hampshire_MA <- read.csv("ebird_hampshire_2021.csv")
+worcester_MA <- read.csv("ebird_worcester_2021.csv")
+
+length(franklin_MA$GLOBAL.UNIQUE.IDENTIFIER) 
+length(hampshire_MA$GLOBAL.UNIQUE.IDENTIFIER) 
+length(worcester_MA$GLOBAL.UNIQUE.IDENTIFIER) 
+
+ebird <- rbind(franklin_MA, hampshire_MA, worcester_MA)
+length(ebird$GLOBAL.UNIQUE.IDENTIFIER)
+head(ebird)
+
+quabbin <- subset(ebird, IBA.CODE == "US-MA_639") #quabbin is listed as an important bird area, IBA.CODE = US-MA_639
+quabbin
+quabbin <- subset(quabbin, select = c(COMMON.NAME, SCIENTIFIC.NAME, OBSERVATION.COUNT, BREEDING.CODE, BREEDING.CATEGORY, LATITUDE, LONGITUDE, OBSERVATION.DATE, OBSERVER.ID, PROTOCOL.CODE) )
+head(quabbin) # this is the dataset that includes all ebird observations from quabbin reservoir
+```
+
+```{r create year month and day data columns}
+# parse date into month, year, and julian day columns 
+dates <- parse_date_time(quabbin$OBSERVATION.DATE, "ymd")
+months <- months(dates)
+year <- year(dates)
+day <- day(dates)
+julian_day <- yday(dates) #  days since Jan 1
+quabbin$julian_day <- julian_day
+quabbin$year <- year
+quabbin$month <- months
+quabbin$day <- day
+quabbin
+
+quabbin2021 <- subset(quabbin, year == "2021") # all bird observations from quabbin reservoir during the year 2021 
+unique(quabbin2021$COMMON.NAME)
+length(unique(quabbin2021$COMMON.NAME)) # 247 unique bird species in the quabbin reservoir in 2021
+```
+
+```{r integrate  bird diet data}
+data(dietdb) # load bird diet dataset 
+dietdb
+
+#create vector with only the names of species where more than 5% of their diet is adult lepidoptera 
+butt_eaters <- subset(dietdb, Prey_Order == "Lepidoptera")
+big_butt_eaters <- subset(butt_eaters, Fraction_Diet >0.05)
+big_butt_eaters_no_cats <- subset(big_butt_eaters, Prey_Stage == "adult")
+
+bird_diet <- subset(big_butt_eaters_no_cats, select = c(Scientific_Name, Prey_Order, Fraction_Diet))
+colnames(bird_diet) <- c("SCIENTIFIC.NAME", "PREY_ORDER", "FRACTION_DIET")
+bird_diet ## list of birds where over 5% of their diet is lepidoptera 
+insectivores <- bird_diet$SCIENTIFIC.NAME # list of all bird species that each butterflies 
+
+
+#subset quabbin 2021 data to only include species within our insectivorous bird list 
+quabbin_insectivores <- subset(quabbin2021, SCIENTIFIC.NAME %in% insectivores) 
+length(quabbin_insectivores$SCIENTIFIC.NAME) ## 12660 observations in 2021
+length(unique(quabbin_insectivores$SCIENTIFIC.NAME)) ## 48 insectivorous species in quabbin in 2021 
+
+#subset only observations that occurred within our experimental interval 
+quabbin_insectivores_during_expt <- subset(quabbin_insectivores, julian_day %in% 141:177)
+#Experiments took place between May 21 and June 26, 2021. the julian days for this time interval are 141-177
+
+length(quabbin_insectivores_during_expt$SCIENTIFIC.NAME) # 2,592 observations during experimental interval 
+length(unique(quabbin_insectivores_during_expt$SCIENTIFIC.NAME)) # 42 insectivorous bird species 
+```
+
+## spatial distribution of attacks 
+```{r load datasets }
+# in order to visually assess the spread of attacks across our field sites, we merged coordinate data for each site with our attack data
+# using this data, we created a point plot demonstrating where attacks occurred and how many attacks occurred at each site 
+
+setwd("...")
+site_coords <- read.csv("quabbin_site_coordinate_data.csv")
+
+m <- curl("...") #load model data 
+model <- read.csv(m, header = TRUE, sep = ",")
+head(model)
+length(model$transect)
+type1 <- rep(c("model"),times= length(model$transect))
+model$type <- type1
+model
+
+#attack totals on models and mimics
+attacks_species<- aggregate(x=model$attacks, by = list(model$species, model$transect), FUN=sum)
+attacks_species_day <- aggregate(x=model$attacks, by = list(model$species, model$transect, model$experiment.day), FUN=sum)
+
+
+
+c <- curl("...") #load mimic data
+mimic <- read.csv(c, header = TRUE, sep = ",")
+head(mimic)
+length(mimic$treatment)
+type2 <- rep(c("mimic"),times= length(mimic$treatment))
+mimic$type <- type2
+mimic
+
+#change column names for model data so they are consistent with mimic data 
+colnames(model) <- c("treatment", "experiment.day", "field.site", "species", "attacks", "field.day", "type")
+
+
+attack_data <- rbind(model, mimic)
+
+
+length(attack_data$type) #1120
+
+site_coords <- subset(site_coords, select = c(field.site, latitude, longitude) )
+
+#merge attack data with site coordinates 
+attack_coords_data <- merge(attack_data, site_coords, by="field.site", all.x = TRUE) #check: data length still matches? yes 
+```
+
+```{r load google API}
+
+citation("ggmap") ##use this citation for ggmap 
+
+register_google(key = "")
+```
+
+```{r Quabbin site map }
+#load GPS data for quabbin sites 
+d <- curl("...")
+map <- read.csv(d, header = TRUE, sep = ",")
+head(map)
+map <- subset(map, select = c(experiment, site, latitude, longitude) )
+head(map)
+
+quab.map <- 
+
+  ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+  geom_point(aes(x = longitude, y = latitude),
+             data = map,
+             color = "black",
+             size = 5, 
+             stroke = 1)  + 
+  geom_point(aes(x = longitude, y = latitude, color = experiment, fill = experiment), 
+             data = map, size = 4.6) +  
+  scale_color_manual(guide="legend", name = "Treatment",
+                     breaks = c("four", "two", "one", "sim"), 
+                     values = c("lightblue3","royalblue2", "navyblue", "red3"), 
+                     labels = c("T4", "T2", "T1", "T0")) + 
+  theme(legend.position="right", 
+        axis.title = element_text(size = 20, face="bold"), 
+        axis.text = element_text(size = 20),
+        legend.title = element_text(face ="bold")) + 
+  xlab("Longitude") + ylab("Latitude") + 
+  ggspatial::annotation_north_arrow(which_north = "true", 
+                                    location = "br",
+                                    height = unit(3, "cm"),
+                                    width = unit(3, "cm"),
+                                    pad_x = unit(0.1, "in"), pad_y = unit(0.2, "in"),
+                                    style = north_arrow_orienteering) + 
+  annotation_scale(location = "tr", pad_y = unit(0.2, "in"), pad_x = unit(0.1, "in"), 
+                   line_width = 3, height = unit(0.2, "in"), text_cex = 2.5) + 
+  coord_sf(crs = 4326)
+  
+quab.map
+
+ggsave(quab.map, file = ".../quab.map.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
+```{r sum attacks by site}
+
+sum_attacks_by_site <- aggregate(x=attack_coords_data$attacks, by = list(attack_coords_data$treatment, attack_coords_data$field.site), FUN=sum)
+colnames(sum_attacks_by_site) <- c("treatment", "field.site", "attacks")
+sum_attacks_by_site
+sum_attacks_by_site <- merge(sum_attacks_by_site, site_coords, by="field.site", all.x = TRUE)
+sum_attacks_by_site_no_zero <- subset(sum_attacks_by_site, attacks > 0) 
+
+```
+
+```{r plot attacks by site}
+#plot not colored by treatment
+attacks_plot <- ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 12, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+  geom_point(aes(x = longitude, y = latitude, size = attacks), data = sum_attacks_by_site_no_zero)  + 
+  theme(legend.position="right", axis.title = element_text(size = 20, face="bold"), axis.text = element_text(size = 20), 
+        legend.title = element_text(face ="bold")) + 
+  xlab("Longitude") + ylab("Latitude") + labs(size = "Attacks") +
+  guides(fill=guide_legend(title="Attacks")) +
+  ggspatial::annotation_north_arrow(which_north = "true", 
+                                    location = "br",
+                                    height = unit(3, "cm"),
+                                    width = unit(3, "cm"),
+                                    pad_x = unit(0.1, "in"), pad_y = unit(0.2, "in"),
+                                    style = north_arrow_orienteering) + 
+  annotation_scale(location = "tr", pad_y = unit(0.2, "in"), pad_x = unit(0.1, "in"), 
+                   line_width = 3, height = unit(0.2, "in"), text_cex = 2.5) + 
+  coord_sf(crs = 4326)
+
+attacks_plot
+ggsave(attacks_plot, file = ".../attacks_plot.pdf", width=15, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
+```{r spatial autocorrelation}
+#source: https://rpubs.com/Averysaurus/spatial_epi_4
+# we don't want to do spatial autocorrelation on the location of our field sites, we want to do spatial autocorrelaiton on bird attacks within our field sites 
+
+sum_attacks_by_site
+# linear model showing relationship betwwen site and attacks 
+
+# remove treatment column 
+sum_attacks_by_site_no_treat <- subset(sum_attacks_by_site, select = c(field.site, attacks, latitude, longitude) )
+
+#We can first generate a distance matrix, then take inverse of the matrix values and replace the diagonal entries with zero:
+
+attack.dists <- as.matrix(dist(cbind(sum_attacks_by_site_no_treat$longitude, sum_attacks_by_site_no_treat$latitude)))
+
+attack.dists.inv <- 1/attack.dists
+diag(attack.dists.inv) <- 0
+ 
+attack.dists.inv[1:5, 1:5]
+
+library(ape)
+library(pgirmess)
+citation("pgirmess")
+
+# compute Moran's I autocorrelation coefficient of x with number of attacks and the inversely weighted distance values.  
+moran_i_one <- ape::Moran.I(sum_attacks_by_site_no_treat$attacks, attack.dists.inv)   
+moran_i_one # not significant 
+
+# ascertain maximum distance between points. 
+max_dist<-max(dist(cbind(sum_attacks_by_site_no_treat$longitude, sum_attacks_by_site_no_treat$latitude)))
+max_dist # this is the max distance class (report this) and average 
+
+# bind latitude and longitude point data vector into object.
+xy=cbind(sum_attacks_by_site_no_treat$longitude, sum_attacks_by_site_no_treat$latitude)
+
+# create correlogram
+pgi_cor <- pgirmess::correlog(coords=xy, z=sum_attacks_by_site_no_treat$attacks, 
+                              method="Moran", nbclass=30) 
+pgi_cor #moran's I statistic table 
+
+# plot correlogram
+plot(pgi_cor)
+
+#We see evidence of positive sptial autocorrelation (clustering) in the correlogram above. One statistically significant coefficient is visible here within the first distance class, at about .02 decimal degrees of distance, approximately 2km. At other distances, Moran’s I value decreases sharply, as well as becoming fairly indistinguishable from a null hypothesis indicating spatial randomness. 
+
+#with the exception of directly neighboring sites, sites generally experiment spatial randomness and comparisons across transects are spatially independent 
+
+
+# number of sites per transects that experienced bird attacks
+sum_attacks_by_site
+sum_attacks_by_site_no_zero
+
+sites_per_treatment <- aggregate(x=sum_attacks_by_site_no_zero$field.site, by = list(sum_attacks_by_site_no_zero$treatment), FUN=length)
+
+# number of attacks per transect 
+attacks_per_treatment <- aggregate(x=sum_attacks_by_site_no_zero$attacks, by = list(sum_attacks_by_site_no_zero$treatment), FUN=sum)
+# treatments four, one, and two had more facsimiles so they had more attacks, overall 
+
+# 1.0 decimal degree is approximately equal to 111 km. 
+moran_table <- as.data.frame(pgi_cor)
+
+dist.km <- (moran_table$dist.class)*111
+
+moran_table$dist.km <- dist.km
+moran_table
+
+write.csv(moran_table,file='/.../moran_table.csv', row.names=FALSE)
+
+## average number of attacks per site 
+attack_data
+
+model
+model_b <- subset(model, species == "battus")
+model_j <- subset(model, species == "junonia")
+
+mimic
+mimic_l <- subset(mimic, species == "limenitis")
+mimic_j <- subset(mimic, species == "junonia")
+
+# sum attacks per species per site (aps = attacks per site)
+aps_bat_train <-  aggregate(x=model_b$attacks, by = list(model_b$field.site), FUN=sum)
+aps_jun_train <-  aggregate(x=model_j$attacks, by = list(model_j$field.site), FUN=sum)
+aps_lim_test <-  aggregate(x=mimic_l$attacks, by = list(mimic_l$field.site), FUN=sum)
+aps_jun_test <-  aggregate(x=mimic_j$attacks, by = list(mimic_j$field.site), FUN=sum)
+
+#remove sites with zero attacks 
+aps_bat_train_noNA <- subset(aps_bat_train, x > 0) 
+aps_jun_train_noNA <- subset(aps_jun_train, x > 0) 
+aps_lim_test_noNA <- subset(aps_lim_test, x > 0) 
+aps_jun_test_noNA <- subset(aps_jun_test, x > 0) 
+
+# calculate average number of attacks per site 
+aps_train <-  aggregate(x=model$attacks, by = list(model$field.site), FUN=sum)
+aps_train_noNA <- subset(aps_train, x > 0) 
+mean(aps_train_noNA$x) #1.94
+
+aps_test <-  aggregate(x=mimic$attacks, by = list(mimic$field.site), FUN=sum)
+aps_test_noNA <- subset(aps_test, x > 0) 
+mean(aps_test_noNA$x) #1.76
+
+# calculate average number of attacks per species per site 
+mean(aps_bat_train$x)
+
+
+```
+
+## temporal confounds analysis 
+```{r fledgling & migration times}
+fledglings <- subset(quabbin_insectivores, BREEDING.CODE == "FL") 
+# six fledgling observations were recorded at the quabbin in 2021 
+# all fledglings were observed between June 26 and July 22 in 2021 
+
+# We used the Athol Bird and Nature club checklist for quabbin to identify all bird species that are expected to migrate during the duration of our experiment. To do this, we pulled out all birds that have an expected arrival or departure date that begins or ends with one of the weeks of our experiment, and added that information into our quabbin insectivorous birds dataset 
+
+setwd("...")
+migratory_birds <- read.csv("Athol_Migratory_Bird_List.csv")
+migratory_birds
+colnames(migratory_birds) <- c("COMMON.NAME", "EXPECTED_DATES", "STATUS", "MAY_JUNE_MIGRATION")
+migratory_birds
+
+total <- merge(quabbin_insectivores_during_expt, migratory_birds, by="COMMON.NAME", all.x = TRUE)
+quab_mig_birds <- subset(total, MAY_JUNE_MIGRATION == "yes")
+
+length(quab_mig_birds$SCIENTIFIC.NAME) # 24 observations of migratory birds 
+length(unique(quab_mig_birds$SCIENTIFIC.NAME)) # 3 different species 
+# all observations of migratory species were recorded between 141 - 151 
+```
+
+```{r create presence only data}
+quabbin2021 # all bird observations in quabbin 2021 
+quabbin_expt <- subset(quabbin2021, julian_day %in% 141:177) # subset all ebird observations from experimental interval 
+length(unique(quabbin_expt$julian_day)) ## there are ebird surveys from every day during our experiment
+observations_by_day <- aggregate(x=quabbin_expt$OBSERVATION.COUNT, by = list(quabbin_expt$OBSERVER.ID, quabbin_expt$julian_day), FUN=length)
+observers_by_day <- aggregate(x=observations_by_day$Group.1, by = list(observations_by_day$Group.2), FUN=length) # number of independent observers in the quabbin each day 
+
+# in order to assess temporal trends in species presence across our four experimental intervals, we created a stacked bar plot showing the number of species observed on each day (1 = one person saw this species, 2 = two different people saw this species, etc.) this method allows us to control for high-effort surveys that artificially inflate recorded observations on a given day 
+
+## from the ebird metadata - "if no count was made, an 'X' is used to indicate presence". therefore, I converted "X" values to "1" in the dataset to indicate presence 
+count <-replace(quabbin_insectivores_during_expt$OBSERVATION.COUNT, quabbin_insectivores_during_expt$OBSERVATION.COUNT == "X", 1) 
+quabbin_insectivores_during_expt$OBSERVATION.COUNT <- count
+
+presence_only <-replace(quabbin_insectivores_during_expt$OBSERVATION.COUNT, quabbin_insectivores_during_expt$OBSERVATION.COUNT >1, 1) 
+quabbin_insectivores_during_expt$PRESENCE_ONLY <- presence_only
+
+#check data structure 
+str(quabbin_insectivores_during_expt)
+quabbin_insectivores_during_expt$OBSERVATION.COUNT <- as.numeric(quabbin_insectivores_during_expt$OBSERVATION.COUNT)
+quabbin_insectivores_during_expt$julian_day <- as.integer(quabbin_insectivores_during_expt$julian_day)
+quabbin_insectivores_during_expt$PRESENCE_ONLY <- as.numeric(quabbin_insectivores_during_expt$PRESENCE_ONLY)
+str(quabbin_insectivores_during_expt)
+
+##relative abundance can be confounded by observer effort and detectability. We are interested only in which species were present in the quabbin during our experiment. So, to compare compare changes in community structure across the duration of our experiment, we changed all observation counts to 1 to represent presence 
+
+#merge with treatment by julian day dataframe 
+setwd("...")
+treatments_by_julian_day <- read.csv("treatments_by_julian_day.csv")
+
+quabbin_insectivores_during_expt <- merge(quabbin_insectivores_during_expt, treatments_by_julian_day, by="julian_day", all.x = TRUE)
+```
+
+```{r summarize occurrence by day}
+# aggregate presence only data by oberser ID, Julian Day, and Species 
+corrected_presence_data <- aggregate(x=quabbin_insectivores_during_expt$PRESENCE_ONLY, by = list(quabbin_insectivores_during_expt$julian_day, quabbin_insectivores_during_expt$OBSERVER.ID, quabbin_insectivores_during_expt$SCIENTIFIC.NAME), FUN=sum) # there should only be one observation per species, per day, per observer
+colnames(corrected_presence_data) <- c("julian_day", "observerID", "species", "count")
+corrected_presence_data
+# it seems like ebird users can either enter their observations as one row with the observation count set as "15" OR they can upload three separate data points, each with different oberservations counts. To correct for this, we are including only one observation of each species per day AND per observer ID
+
+#create new presence-only data and check data structure 
+presence_only <-replace(corrected_presence_data$count, corrected_presence_data$count >1, 1) 
+corrected_presence_data$presence <- presence_only # we can infer absence from this because its survey data 
+
+#check data structure 
+str(corrected_presence_data)
+
+#summarize number of species observed and number of observers by day 
+species_counts_by_day <- aggregate(x=corrected_presence_data$presence, by = list(corrected_presence_data$species, corrected_presence_data$julian_day), FUN=sum) 
+colnames(species_counts_by_day) <- c("species", "julian_day", "num_observers")
+num_species_by_day <- aggregate(x=species_counts_by_day$species, by = list(species_counts_by_day$julian_day), FUN=length) 
+colnames(num_species_by_day) <- c("julian_day", "species_count")
+
+# merge "num_species_by_day" with number of individual observers by day 
+observers_by_day
+colnames(observers_by_day) <- c("julian_day", "observers")
+observers_by_day
+
+num_species_by_day <- merge(num_species_by_day, observers_by_day, by="julian_day", all.x = TRUE, all.y = TRUE)
+#and merge with treatment dates dataframe 
+treatments_by_julian_day
+stats_by_day <- merge(num_species_by_day, treatments_by_julian_day, by="julian_day", all.x = TRUE)
+stats_by_day
+
+corrected_presence_data
+corrected_presence_data <- merge(corrected_presence_data, treatments_by_julian_day, by="julian_day", all.x = TRUE)
+corrected_presence_data
+length(unique(corrected_presence_data$species))
+
+corrected_presence_data_NONA <- subset(corrected_presence_data, treatment %in% c("four", "two", "one", "zero"))
+length(unique(corrected_presence_data_NONA$species))
+#species count reduced to 41 after eliminating non-experimental days 
+```
+
+
+```{r stacked bar plots with observers}
+# create color palette for 42 different species 
+set.seed(12345)
+n <- 41
+palette <- distinctColorPalette(n)
+pie(rep(1, n), col=palette)
+species <- unique(corrected_presence_data_NONA$species)
+
+
+#plot with all treatments faceted 
+bird_community_plots <- 
+  ggplot(corrected_presence_data_NONA) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  scale_fill_manual(values = palette) +
+  facet_grid(~ treatment) +
+  guides(fill = guide_legend(ncol = 1))
+
+bird_community_plots # use this legend in final figure 
+
+#plot for each treatment 
+four <- subset(corrected_presence_data_NONA, treatment == "four")
+
+four_plot <- 
+  ggplot(four) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species recorded by independent observers", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 210)) +
+  theme_classic() + 
+  theme(legend.position = "none")
+four_plot
+
+two <- subset(corrected_presence_data_NONA, treatment == "two")
+
+two_plot <- 
+  ggplot(two) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species recorded by independent observers", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 210)) +
+  theme_classic() + 
+  theme(legend.position = "none")
+two_plot
+
+one <- subset(corrected_presence_data_NONA, treatment == "one")
+
+one_plot <- 
+  ggplot(one) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species recorded by independent observers", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 210)) +
+  theme_classic() + 
+  theme(legend.position = "none")
+one_plot
+
+zero <- subset(corrected_presence_data_NONA, treatment == "zero")
+
+zero_plot <- 
+  ggplot(zero) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species recorded by independent observers", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 210)) +
+  theme_classic() + 
+  theme(legend.position = "none")
+zero_plot
+
+#patchwork 
+
+fig = four_plot + two_plot + one_plot + zero_plot 
+# make separate legend using the palette and species list above 
+
+# these plots seem to be highly confounded by observer number. just including species observed might make more sense visually 
+
+```
+
+```{r stacked bar plot species richness}
+species_counts_by_day 
+presence <- rep(c(1),times= length(species_counts_by_day$species))
+species_counts_by_day$presence <- presence
+species_counts_by_day # observer data removed. now we can plot number of species observed by day
+
+#merge with treatment type data frame 
+species_counts_by_day <- merge(species_counts_by_day, treatments_by_julian_day, by="julian_day", all.x = TRUE)
+species_counts_by_day
+length(unique(species_counts_by_day$species))
+
+species_counts_by_day_NONA <- subset(species_counts_by_day, treatment %in% c("four", "two", "one", "zero"))
+length(unique(species_counts_by_day_NONA$species))
+
+# make plot for each treatment and combine with patchwork
+four <- subset(species_counts_by_day_NONA, treatment == "four")
+
+four_plot <- 
+  ggplot(four) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species Richness", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 41)) +
+  geom_rect(aes(xmin = 140.5, xmax = 145.5, ymin = 37, ymax = 42),
+            fill = "grey", color = "black", size = 0.5) +
+  annotate("text", x=c(141, 142, 143, 144, 145), y=c(39, 39, 39, 39, 39), label= c("8", "14", "8", "6", "10"), size = 6) + 
+  theme_classic() + 
+  theme(legend.position = "none")
+four_plot
+
+two <- subset(species_counts_by_day_NONA, treatment == "two")
+
+two_plot <- 
+  ggplot(two) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species Richness", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 41)) +
+  geom_rect(aes(xmin = 155.5, xmax = 160.5, ymin = 37, ymax = 42),
+            fill = "grey", color = "black", size = 0.5) +
+  annotate("text", x=c(156, 157, 158, 159, 160), y=c(39, 39, 39, 39, 39), label= c("14", "8", "6", "1", "7"), size = 6) +
+  theme_classic() + 
+  theme(legend.position = "none")
+two_plot
+
+one <- subset(species_counts_by_day_NONA, treatment == "one")
+
+one_plot <- 
+  ggplot(one) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species Richness", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 41)) +
+  geom_rect(aes(xmin = 162.5, xmax = 167.5, ymin = 37, ymax = 42),
+            fill = "grey", color = "black", size = 0.5) +
+  annotate("text", x=c(163, 164, 165, 166, 167), y=c(39, 39, 39, 39, 39), label= c("6", "5", "2", "2", "4"), size = 6) +
+  theme_classic() + 
+  theme(legend.position = "none")
+one_plot
+
+zero <- subset(species_counts_by_day_NONA, treatment == "zero")
+
+zero_plot <- 
+  ggplot(zero) +
+  geom_bar(aes(x = julian_day, y = presence, fill = species),
+           position = "stack",
+           stat = "identity") +
+  labs(y = "Species Richness", x = "Julian Day") + 
+  scale_fill_manual(breaks = species, values = palette) + 
+  expand_limits(y = c(0, 41)) +
+  geom_rect(aes(xmin = 169.5, xmax = 177.5, ymin = 37, ymax = 42),
+            fill = "grey", color = "black", size = 0.5) +
+  annotate("text", x=c(170, 171, 172, 173, 174, 175, 176, 177), y=c(39, 39, 39, 39, 39, 39, 39, 39), 
+           label= c("4", "3", "3", "3", "1", "4", "2", "6"), size = 6) +
+  theme_classic() + 
+  theme(legend.position = "none")
+zero_plot
+
+#patchwork 
+
+fig = four_plot + two_plot + one_plot + zero_plot # plot of species richness by julian day with observer day 
+
+# in final figure, use legend from full bird community plot 
+bird_community_plots
+```
+
+```{r bubble plot}
+# lets try making a relative abundance bubble plot, we can explain in the paper that observer effort is a confounding variable
+quabbin_insectivores_during_expt 
+
+# sum number of observations per species per day 
+species_counts_by_day2 <- aggregate(x=quabbin_insectivores_during_expt$OBSERVATION.COUNT, by = list(quabbin_insectivores_during_expt$SCIENTIFIC.NAME, quabbin_insectivores_during_expt$julian_day), FUN=sum) 
+colnames(species_counts_by_day2) <- c("species", "julian_day", "observation_count")
+
+# summarize number of sightings per day and number of species per day and add that as a top axis on the bubble plot 
+# sum number of observations per species per day 
+sightings_per_day <- aggregate(x = quabbin_insectivores_during_expt$OBSERVATION.COUNT, 
+                                    by = list(quabbin_insectivores_during_expt$julian_day), FUN=sum) 
+colnames(sightings_per_day) <- c("julian_day", "observation_count")
+
+#sum number of observers per day 
+observers_by_day
+
+#merge 
+effort <- merge(sightings_per_day, observers_by_day, by="julian_day", all.x = TRUE, all.y = TRUE)
+effort[is.na(effort)] <- 0
+effort$observation_count <- paste0("(", effort$observation_count, ")") # add parentheses 
+effort$effort <- paste(effort$observers, effort$observation_count, sep=" ")
+
+effort_string <- effort$effort
+effort$observation_count
+
+# merge with treatment by day dataframe 
+species_counts_by_day2 <- merge(species_counts_by_day2, treatments_by_julian_day, by="julian_day", all.x = TRUE)
+species_counts_by_day2
+length(unique(species_counts_by_day2$species))
+
+community_bubble_plot <- 
+ggplot(data = species_counts_by_day2, aes(x=julian_day, y=species, size=observation_count, fill=treatment)) +
+  geom_point(alpha=0.5, shape=21, color="black") +
+  scale_size(range = c(1, 25), name= "Observation Count") +
+  scale_fill_manual(guide="legend", name = "Treatment", 
+                    breaks = c("four", "two", "one", "zero", "NA"), 
+                    values = c("lightblue3","royalblue2","navyblue", "red3", "grey30"), 
+                    labels = c("T4 Traning Phase", "T2 Training Phase", "T1 Training Phase", "T0 + All Testing Phases", "NA")) + 
+  annotate("text", x = 141:177, y = 44, label = effort$observers) + 
+  annotate("text", x = 141:177, y = 43, label = effort$observation_count) + 
+  annotate("text", x = 159, y = 45, label = "Effort", size = 7, fontface = "bold") +
+  ylab("Species") +
+  xlab("Julian Day") + 
+  expand_limits(y = c(0, 46)) +
+  scale_x_continuous(breaks = seq(141, 177, 1)) +
+  theme_bw() + 
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(), 
+    text = element_text(size = 18), 
+    axis.text.y = element_text(face = "italic"), 
+    axis.title.y = element_text(face = "bold"), 
+    axis.title.x = element_text(face = "bold"), 
+    legend.title = element_text(face = "bold")
+  )
+
+community_bubble_plot
+
+ggsave(community_bubble_plot, file = "/.../community_bubble_plot.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+```
+
+
+```{r shannon diversity index}
+species_counts_by_day2 
+species_counts_by_day2[is.na(species_counts_by_day2)] <- 0
+
+## to run the diversity indices in the vegan package, data need to be formatting with julian day (i.e, site) as rows and species as columns 
+
+library(tidyr)
+#spread species column across multiple columns
+bird_diversity_data <- spread(species_counts_by_day2, key=species, value=observation_count)
+bird_diversity_data[is.na(bird_diversity_data)] <- 0
+bird_diversity_data
+
+bird_diversity_data
+bird_diversity_data_rich <- subset(bird_diversity_data, select = -c(treatment, treatment_numeric) )
+bird_diversity_data_rich[is.na(bird_diversity_data_rich)] <- 0
+
+
+bird_diversity_data_expt <- subset(bird_diversity_data, treatment %in% c("four", "two", "one", "zero"))
+
+bird_diversity_data_expt2 <- subset(bird_diversity_data_expt, select = -c(julian_day, treatment) )
+str(bird_diversity_data_expt2)
+bird_diversity_data_expt2$treatment_numeric <- as.numeric(bird_diversity_data_expt2$treatment_numeric)
+str(bird_diversity_data_expt2)
+bird_diversity_data_expt2[is.na(bird_diversity_data_expt2)] <- 0
+
+library(vegan)
+citation("vegan")
+#source: https://rpubs.com/an-bui/vegan-cheat-sheet
+
+# replication in data: run analysis on treatment type, not day 
+
+# analysis of variance takes the same form as the usual models you'd see in R
+# response ~ dependent, data = environmental grouping
+
+shannondiv <- diversity(bird_diversity_data_expt2, index = "shannon")
+sppdiv_aov <- aov(shannondiv ~ treatment_numeric, data = bird_diversity_data_expt2) # analysis of variance on shannon diversity index 
+summary(sppdiv_aov) 
+```
+
+
+```{r bray curtis index}
+## account for effort by dividing by total number of observers 
+species_counts_by_day2
+observers_by_day
+#merge 
+species_count_with_effort <- merge(species_counts_by_day2, observers_by_day, by="julian_day", all.x = TRUE, all.y = FALSE)
+
+## divide observation count by number of observers 
+observation_count_transformed <- species_count_with_effort$observation_count/species_count_with_effort$observers
+
+species_count_with_effort$observation_count_transformed <- observation_count_transformed
+
+#clean up our data frame - remove columns that we don't need 
+species_count_with_effort_clean <- subset(species_count_with_effort, select = -c(observation_count, treatment_numeric, observers) )
+
+#spread species column across multiple columns
+bird_diversity_data <- spread(species_count_with_effort_clean, 
+                              key=species, 
+                              value=observation_count_transformed)
+
+bird_diversity_data[is.na(bird_diversity_data)] <- 0
+bird_diversity_data
+
+bird_diversity_data_only_expt <- subset(bird_diversity_data, treatment %in% c("four", "two", "one", "zero"))
+
+dist_dml <- vegdist(x=as.matrix(bird_diversity_data_only_expt[,3:44]), method="bray", binary=FALSE, diag=TRUE, upper=TRUE, na.rm=FALSE)
+
+adonis2(dist_dml ~ treatment, data=bird_diversity_data_only_expt, permutations=999, method="bray")
+
+```
+
+```{r bubble plot with transformed effort}
+
+community_bubble_plot_effort <- 
+ggplot(data = species_count_with_effort, 
+       aes(x=julian_day, y=species, size=observation_count_transformed, fill=treatment)) +
+  geom_point(alpha=0.5, shape=21, color="black") +
+  scale_size(range = c(1, 25), name= "Observation Count (controled for effort)") +
+  scale_fill_manual(guide="legend", name = "Treatment", 
+                    breaks = c("four", "two", "one", "zero", "NA"), 
+                    values = c("lightblue3","royalblue2","navyblue", "red3", "grey30"), 
+                    labels = c("T4 Traning Phase", "T2 Training Phase", "T1 Training Phase", "T0 + All Testing Phases", "NA")) + 
+  annotate("text", x = 141:177, y = 44, label = effort$observers) + 
+  annotate("text", x = 141:177, y = 43, label = effort$observation_count) + 
+  annotate("text", x = 159, y = 45, label = "Effort", size = 7, fontface = "bold") +
+  ylab("Species") +
+  xlab("Julian Day") + 
+  expand_limits(y = c(0, 46)) +
+  scale_x_continuous(breaks = seq(141, 177, 1)) +
+  theme_bw() + 
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(), 
+    text = element_text(size = 18), 
+    axis.text.y = element_text(face = "italic"), 
+    axis.title.y = element_text(face = "bold"), 
+    axis.title.x = element_text(face = "bold"), 
+    legend.title = element_text(face = "bold")
+  )
+
+community_bubble_plot_effort
+
+ggsave(community_bubble_plot_effort, file = "/.../community_bubble_plot_effort.pdf", width=25, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
+
+```{r loop function}
+##make loop function to plot observations for all species 
+
+my_species_splits = split(sum_data, sum_data$species)
+
+par(mfrow = c(3, 14))  # Set up a 6 by 7 grid 
+
+for (i in my_species_splits) {
+barplot(height = i$observations, i$julian_day, 
+        main = paste(unique(i$species)),
+        xlab="Julian_Day", 
+        ylab="observations",
+        names.arg = i$julian_day,
+        font.lab=2,
+        cex.lab=2 )
+
+  }
+
+
+for (i in my_species_splits) {
+  plot = ggplot(i, aes(x = julian_day, y = observations)) + 
+    geom_col() + 
+    labs(x = "Julian Day", y = "Observations")  +
+    ggtitle(unique(i$species)) + 
+    scale_y_continuous(breaks = seq(0, 20, 1))  + 
+    scale_x_continuous(breaks = seq(141, 177, 1)) + 
+    expand_limits(y = c(0, 20), x = c(141, 177))
+
+  ggsave(plot, file=paste0("...", "plot_", unique(i$species), ".pdf"), width = 25, height = 15, units = "cm")
+  }
+
+```
+
+
+## spatial confounds analysis 
+
+```{r quabbin bird map}
+## quabbin bird observations map 
+
+bird_plot <- 
+  ggmap(get_googlemap(center = c(lon = -72.30, lat = 42.398),
+                    zoom = 11, scale = 2,
+                    maptype ='roadmap',
+                    color = 'color', 
+                    style=c(feature="all",element="labels",visibility="off"))) + 
+  geom_point(aes(x = LONGITUDE, y = LATITUDE, color = SCIENTIFIC.NAME), 
+             data = quabbin_insectivores_during_expt, size = 4, alpha=0.7, position = "jitter") + 
+  labs(x = "Longitude", y = "Latitude")  +
+  geom_jitter(width = 0.25)
+  theme_classic() 
+
+bird_plot
+```
+
+### kernal density maps massachusetts 
+
+```{r load Mass data}
+# load ebird data for Massachusetts to assess spatial distributions 
+setwd("...")
+file.exists("ebd_US-MA_202101_202112_smp_relJan-2024.txt")
+mass_ebird_data <- read.delim("ebd_US-MA_202101_202112_smp_relJan-2024.txt")
+head(mass_ebird_data)
+length(mass_ebird_data$COMMON.NAME)
+
+#filter data columns 
+mass_ebird_data <- subset(mass_ebird_data, select = c(COMMON.NAME, SCIENTIFIC.NAME, OBSERVATION.COUNT, LATITUDE, LONGITUDE, OBSERVATION.DATE, OBSERVER.ID) )
+head(mass_ebird_data)
+
+# merge with insectivorous bird list to reduce file size 
+length(unique(quabbin_insectivores_during_expt$SCIENTIFIC.NAME)) # 42 insectivorous birds in the quabbin during our experiment 
+quabbin_insectivores <- unique(quabbin_insectivores_during_expt$SCIENTIFIC.NAME)
+mass_insectivores <- subset(mass_ebird_data, SCIENTIFIC.NAME %in% quabbin_insectivores) 
+mass_insectivores
+
+```
+
+```{r kernal density plots}
+# source: https://jamesepaterson.github.io/jamespatersonblog/04_trackingworkshop_kernels
+# plot kernal density home ranges for all insectivorous bird species
+# quabbin is ideal habitat - no reason to expect birds not to be present, since quabbin is within their home range 
+library(sp)
+library(adehabitatHR)
+citation("adehabitatHR")
+library(sf)
+library(maps)
+
+MainStates <- map_data("state")
+# Only include three columns (id, x, and y coordinates) for estimating home ranges
+mass_insectivores <- subset(mass_insectivores, select = c(SCIENTIFIC.NAME, LONGITUDE, LATITUDE))
+
+# SpatialPointsDataFrame objects don't like missing values
+# Remove rows with NA's
+mass_insectivores <- mass_insectivores[!is.na(mass_insectivores$LATITUDE) & !is.na(mass_insectivores$LONGITUDE),]
+mass_insectivores <- as.data.frame(mass_insectivores)
+
+# Create a coordinate column, with both your X and Y values:
+xy <- mass_insectivores[, c("LONGITUDE", "LATITUDE")]
+
+#coordinates(mass_insectivores) <- c("LONGITUDE", "LATITUDE")
+
+# Create a copy of the object to make into a SpatialPointsDataFrame
+mass_insectivores.sp <- SpatialPointsDataFrame(coords = xy, data = mass_insectivores, proj4string = CRS("+proj=utm +zone=18 +south +datum=WGS84 +units=m +no_defs"))
+
+mass_insectivores.sp_4326 <-spTransform(mass_insectivores.sp, CRS("+init=epsg:4326"))
+
+# Set the coordinate reference system (CRS)
+# More information on CRS here: 
+# https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/OverviewCoordinateReferenceSystems.pdf
+# The sample data are UTM points in WGS84 from zone 18
+
+kernel.ref <- kernelUD(mass_insectivores.sp_4326, h = "href")  # href = the reference bandwidth
+image(kernel.ref) # plot
+
+bird.kernel.poly <- getverticeshr(kernel.ref, percent = 95) 
+print(bird.kernel.poly)  # returns the area of each polygon
+
+
+bird.kernel.poly.sf <- st_as_sf(bird.kernel.poly)
+
+
+mass_home_ranges <- ggplot() + 
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0)
+mass_home_ranges
+```
+
+```{r kernal density plots by species}
+mass_insectivores <- mass_insectivores[!is.na(mass_insectivores$LATITUDE) & !is.na(mass_insectivores$LONGITUDE),]
+
+# Create a copy of the object to make into a SpatialPointsDataFrame
+# Only include three columns (id, x, and y coordinates) for estimating home ranges
+mass_insectivores.sp <- mass_insectivores[, c("SCIENTIFIC.NAME", "LONGITUDE", "LATITUDE")]
+coordinates(mass_insectivores.sp) <- c("LONGITUDE", "LATITUDE")
+
+# Set the coordinate reference system (CRS)
+# More information on CRS here: 
+# https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/OverviewCoordinateReferenceSystems.pdf
+# The sample data are UTM points in WGS84 from zone 18N
+proj4string(mass_insectivores.sp) <- CRS( "+proj=utm +zone=18 +datum=WGS84 +units=m +no_defs" )
+
+kernel.ref <- kernelUD(mass_insectivores.sp, h = "href")  # href = the reference bandwidth
+image(kernel.ref) # plot
+
+bird.kernel.poly <- getverticeshr(kernel.ref, percent = 95) 
+print(bird.kernel.poly)  # returns the area of each polygon
+
+bird.kernel.poly.sf <- st_as_sf(bird.kernel.poly, CRS = 4326)
+
+mass_home_ranges <- ggplot() + 
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0)
+mass_home_ranges
+```
+
+```{r combining maps}
+
+dat=map_data("world")
+quabbin_shp <- st_read('/.../QRBATH_POLY.shp')
+summary(quabbin_shp)
+quabbin_sp <- as(quabbin_shp, "Spatial")
+quabbin_shp_4326 <-spTransform(quabbin_sp, CRS("+init=epsg:4326"))
+
+quabbin_shp_4326_sf <- st_as_sf(quabbin_shp_4326)
+quabbin_shp_4326_sf
+
+quab_map <- ggplot(quabbin_shp_4326_sf) + 
+  geom_sf(data = quabbin_shp_4326_sf, color = "blue", fill = "blue") 
+quab_map
+
+quab_map2 <- quab_map + 
+  geom_polygon( data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) + 
+  coord_sf(xlim = c(-74.014554, -69.610095), ylim = c(41.009634, 43.187997)) +
+  theme_bw()
+quab_map2
+
+ggsave(quab_map2, file = "/.../quab_map2.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+quab_map3 <- quab_map2 + 
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0) + geom_sf(data = quabbin_shp_4326_sf, color = "blue", fill = "blue")
+quab_map3
+
+bird_map <- ggplot() + 
+  geom_polygon( data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) +
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0) + 
+  coord_sf(xlim = c(-74.014554, -69.610095), ylim = c(41.009634, 43.187997)) +
+  theme_bw()
+
+bird_map
+
+ggsave(bird_map, file = "/.../bird_map.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
+```{r plotting ranges on google maps}
+
+bird.kernel.poly.sf.4326 <- st_transform(bird.kernel.poly.sf, 4326)
+
+bounding <- sf::st_bbox(bird.kernel.poly.sf.4326)  # get the bounding box of the data - we'll use this to get the basemap
+names(bounding) <- c("left","bottom","right","top") 
+
+map <- get_map(location = bounding, zoom = 8)
+
+# Just plotting, the geom_sf layer is not aligned properly:
+ggmap(map) + 
+  geom_sf(data = bird.kernel.poly.sf.4326, aes(color = id),fill = "white", alpha = 0, inherit.aes = FALSE)
+#> Coordinate system already present. Adding new coordinate system, which will replace the existing one.
+
+
+
+# Transform data to EPSG 3857 (Pseudo-Mercator, what Google uses)
+bird.kernel.poly.sf_3857 <- st_transform(bird.kernel.poly.sf, 3857)
+
+map # see above 
+
+# Define a function to fix the bbox to be in EPSG:3857
+ggmap_bbox <- function(map) {
+  if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
+  # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
+  # and set the names to what sf::st_bbox expects:
+  map_bbox <- setNames(unlist(attr(map, "bb")), 
+                       c("ymin", "xmin", "ymax", "xmax"))
+
+  # Coonvert the bbox to an sf polygon, transform it to 3857, 
+  # and convert back to a bbox (convoluted, but it works)
+  bbox_3857 <- st_bbox(st_transform(st_as_sfc(st_bbox(map_bbox, crs = 4326)), 3857))
+
+  # Overwrite the bbox of the ggmap object with the transformed coordinates 
+  attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
+  attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
+  attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
+  attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
+  map
+}
+
+# Use the function:
+map <- ggmap_bbox(map)
+
+ggmap(map) + 
+  coord_sf(crs = st_crs(3857)) + # force the ggplot2 map to be in 3857
+  geom_sf(aes(fill = id), data = bird.kernel.poly.sf_3857, inherit.aes = FALSE)
+```
+
+### kernal density maps north east 
+
+```{r load northeast ebird data}
+# load all ebird data from states in the north east and run kernal density estimate 
+
+# Massachusetts 
+setwd("...")
+file.exists("ebd_US-MA_202101_202112_smp_relJan-2024.txt")
+mass_ebird_data <- read.delim("ebd_US-MA_202101_202112_smp_relJan-2024.txt")
+head(mass_ebird_data)
+length(mass_ebird_data$COMMON.NAME)
+
+# New Hampshire 
+NH_ebird_data <- read.delim("ebd_US-NH_202101_202112_relFeb-2024.txt")
+head(NH_ebird_data)
+length(NH_ebird_data$COMMON.NAME)
+
+# Vermont
+VT_ebird_data <- read.delim("ebd_US-VT_202101_202112_relFeb-2024.txt")
+head(VT_ebird_data)
+length(VT_ebird_data$COMMON.NAME)
+
+# Maine
+ME_ebird_data <- read.delim("ebd_US-ME_202101_202112_relFeb-2024.txt")
+head(ME_ebird_data)
+length(ME_ebird_data$COMMON.NAME)
+
+# Rhode Island 
+RI_ebird_data <- read.delim("ebd_US-RI_202101_202112_relFeb-2024.txt")
+head(RI_ebird_data)
+length(RI_ebird_data$COMMON.NAME)
+
+# Connecticut
+CT_ebird_data <- read.delim("ebd_US-CT_202101_202112_relFeb-2024.txt")
+head(CT_ebird_data)
+length(CT_ebird_data$COMMON.NAME)
+
+# New England Birds
+ebird_new_england <- rbind(mass_ebird_data, NH_ebird_data, VT_ebird_data, ME_ebird_data, RI_ebird_data, CT_ebird_data)
+ebird_new_england <- subset(ebird_new_england, select = c(SCIENTIFIC.NAME, LATITUDE, LONGITUDE) )
+
+# filter to only include insectivorous birds 
+# merge with insectivorous bird list to reduce file size 
+length(unique(quabbin_insectivores_during_expt$SCIENTIFIC.NAME)) # 42 insectivorous birds in the quabbin during our experiment 
+quabbin_insectivores <- unique(quabbin_insectivores_during_expt$SCIENTIFIC.NAME)
+
+new_eng_insectivores <- subset(ebird_new_england, SCIENTIFIC.NAME %in% quabbin_insectivores) 
+length(new_eng_insectivores$SCIENTIFIC.NAME)
+length(unique(new_eng_insectivores$SCIENTIFIC.NAME))
+
+# New Jersey 
+NJ_ebird_data <- read.delim("ebd_US-NJ_202101_202112_relFeb-2024.txt")
+head(NJ_ebird_data)
+length(NJ_ebird_data$COMMON.NAME)
+NJ_ebird_data <- subset(NJ_ebird_data, select = c(SCIENTIFIC.NAME, LATITUDE, LONGITUDE) )
+
+NJ_insectivores <- subset(NJ_ebird_data, SCIENTIFIC.NAME %in% quabbin_insectivores) 
+length(NJ_insectivores$SCIENTIFIC.NAME)
+length(unique(NJ_insectivores$SCIENTIFIC.NAME))
+
+# New York 
+NY_ebird_data <- read.delim("ebd_US-NY_202101_202112_relFeb-2024.txt")
+head(NY_ebird_data)
+length(NY_ebird_data$COMMON.NAME)
+NY_ebird_data <- subset(NY_ebird_data, select = c(SCIENTIFIC.NAME, LATITUDE, LONGITUDE) )
+
+NY_insectivores <- subset(NY_ebird_data, SCIENTIFIC.NAME %in% quabbin_insectivores) 
+length(NY_insectivores$SCIENTIFIC.NAME)
+length(unique(NY_insectivores$SCIENTIFIC.NAME))
+
+# Pennsylvania  
+PA_ebird_data <- read.delim("ebd_US-PA_202101_202112_relFeb-2024.txt")
+head(PA_ebird_data)
+length(PA_ebird_data$COMMON.NAME)
+PA_ebird_data <- subset(PA_ebird_data, select = c(SCIENTIFIC.NAME, LATITUDE, LONGITUDE) )
+
+PA_insectivores <- subset(PA_ebird_data, SCIENTIFIC.NAME %in% quabbin_insectivores) 
+length(PA_insectivores$SCIENTIFIC.NAME)
+length(unique(PA_insectivores$SCIENTIFIC.NAME))
+
+
+# North East Birds
+ebird_north_east <- rbind(new_eng_insectivores, NJ_insectivores, NY_insectivores, PA_insectivores)
+
+length(ebird_north_east$SCIENTIFIC.NAME)
+length(unique(ebird_north_east$SCIENTIFIC.NAME))
+
+```
+
+```{r kernal density plots by species}
+ebird_north_east <- ebird_north_east[!is.na(ebird_north_east$LATITUDE) & !is.na(ebird_north_east$LONGITUDE),]
+
+# Create a copy of the object to make into a SpatialPointsDataFrame
+# Only include three columns (id, x, and y coordinates) for estimating home ranges
+ebird_north_east.sp <- ebird_north_east[, c("SCIENTIFIC.NAME", "LONGITUDE", "LATITUDE")]
+coordinates(ebird_north_east.sp) <- c("LONGITUDE", "LATITUDE")
+
+# Set the coordinate reference system (CRS)
+# More information on CRS here: 
+# https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/OverviewCoordinateReferenceSystems.pdf
+# The sample data are UTM points in WGS84 from zone 18N
+proj4string(ebird_north_east.sp) <- CRS( "+proj=utm +zone=18 +datum=WGS84 +units=m +no_defs" )
+
+kernel.ref <- kernelUD(ebird_north_east.sp, h = "href")  # href = the reference bandwidth
+image(kernel.ref) # plot
+
+bird.kernel.poly <- getverticeshr(kernel.ref, percent = 95) 
+print(bird.kernel.poly)  # returns the area of each polygon
+
+bird.kernel.poly.sf <- st_as_sf(bird.kernel.poly, CRS = 4326)
+
+NE_home_ranges <- ggplot() + 
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0)
+NE_home_ranges
+
+bird_map <- ggplot() + 
+  geom_polygon( data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) +
+  geom_sf(aes(color = id), data = bird.kernel.poly.sf, fill = "white", alpha = 0) + 
+  coord_sf(xlim = c(-81.028625, -66.372864), ylim = c(38.974222, 47.781672)) +
+  theme_classic() + 
+  guides(color = guide_legend(title = "Insectivorous Birds Species", ncol=2)) + 
+  theme(
+    text = element_text(size = 18), 
+    legend.text = element_text(face = "italic"), 
+    legend.title = element_text(face = "bold"))
+
+bird_map
+
+ggsave(bird_map, file = "/.../bird_map_NE.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+```
+
+```{r northeast quabbin map}
+dat=map_data("world") # in ggplot2
+MainStates <- map_data("state")
+
+quabbin_shp <- st_read('/.../QRBATH_POLY.shp')
+summary(quabbin_shp)
+quabbin_sp <- as(quabbin_shp, "Spatial")
+quabbin_shp_4326 <-spTransform(quabbin_sp, CRS("+init=epsg:4326"))
+
+quabbin_shp_4326_sf <- st_as_sf(quabbin_shp_4326)
+quabbin_shp_4326_sf
+
+quab_map_NE <- ggplot(quabbin_shp_4326_sf) + 
+  geom_sf(data = quabbin_shp_4326_sf, color = "blue", fill = "blue") + 
+  geom_polygon( data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) + 
+  coord_sf(xlim = c(-81.028625, -66.372864), ylim = c(38.974222, 47.781672)) +
+  theme_classic()
+
+quab_map_NE
+ggsave(quab_map_NE, file = "/.../quab_map_NE.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+
+map3 <- ggplot() +  
+  geom_polygon(data=MainStates, aes(x=long, y=lat, group=group), color="black", fill = "white", alpha=0.7) + 
+  geom_sf(data = quabbin_shp_4326_sf, color = "blue", fill = "blue") + 
+  geom_sf(data = bird.kernel.poly.sf, aes(color = id), fill = "white", alpha = 0) + 
+  coord_sf(xlim = c(-81.028625, -66.372864), ylim = c(38.974222, 47.781672)) +
+  theme_classic()
+
+map3
+
+ggsave(map3, file = "/.../quab_map_legend.pdf", width=20, height=10, units=c("in"), useDingbats=FALSE)
+
+```
