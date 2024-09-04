@@ -161,6 +161,7 @@ Anova(mod4, type = "III")
 
 #run model comparisons 
 anova(mod2, mod4) 
+anova(mod1, mod2, mod3, mod4) 
 ## models are not significantly different - mod2 has a lower AIC score 
 ```
 

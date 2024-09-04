@@ -37,5 +37,6 @@ $R.version.string
 [1] ‘2.7.8’
 > packageVersion("rstudioapi")
 [1] ‘0.16.0’
-
+> packageVersion("rstatix")
+[1] ‘0.7.2’
 
