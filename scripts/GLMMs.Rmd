@@ -220,6 +220,8 @@ mimic$attacks <- as.numeric(mimic$attacks)
 
 mimic$treatment <- as.factor(mimic$treatment)
 
+mimic$species <- as.factor(mimic$species)
+
 mimic$experiment.day <- factor(mimic$experiment.day, order = TRUE, levels = c("1", "2", "3", "4"))
 
 mimic$field.day <- as.factor(mimic$field.day)
@@ -260,10 +262,11 @@ mimic$latitude <- as.vector(mimic$latitude)
 mimic$longitude <- as.vector(abs(mimic$longitude)) #absolute value of longitude. glmmtmb cannot interpret negative values 
 
 mimic$pos <- numFactor(mimic$longitude, mimic$latitude)
-mimic$group <- factor(rep(1, nrow(mimic)))
+mimic$group <- factor(rep(1, nrow(mimic), times = 1))
 
 #all random effects 
-mod5 <- glmmTMB(attacks ~ species*treatment + (1|field.site) + (1|field.day) + exp(pos + 0 | group), 
+mod5 <- glmmTMB(attacks ~ species*treatment + (1|field.site) + (1|field.day) + 
+                  exp(pos + 0 | group), 
                 data = mimic, ziformula=~1, family=poisson) 
 summary(mod5)
 Anova(mod5, type = "III") 
@@ -311,6 +314,7 @@ pairs(EMM2)
 pairs(EMM2, adjust = "bonferroni")
 
 ```
+
 
 #Chi squared analysis for synchronous treatment 
 ```{r synchronous treatment }
