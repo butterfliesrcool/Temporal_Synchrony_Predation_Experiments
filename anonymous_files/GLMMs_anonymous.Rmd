@@ -158,6 +158,25 @@ Anova(mod4, type = "III")
 #run model comparisons 
 anova(mod2, mod4) 
 ## models are not significantly different - mod2 has a lower AIC score 
+
+## goodness of fit comparison with model without spatial correction 
+
+## mod2 without spatial correction 
+mod2_2 <- glmmTMB(attacks ~ experiment.day*species + transect, 
+                data = model, ziformula=~1, family=poisson) 
+summary(mod2_2)
+check_singularity(mod2_2) #no singularity issues
+Anova(mod2_2, type = "III") 
+
+## mod4 without spatial correction 
+mod4_2 <- glmmTMB(attacks ~ experiment.day*species + transect + (1|field.day),
+                data = model, ziformula=~1, family=poisson) 
+summary(mod4_2)
+check_singularity(mod4_2) #false 
+Anova(mod4_2, type = "III") 
+
+## model comparisons
+anova(mod2, mod4, mod2_2, mod4_2) 
 ```
 
 ###Check residuals 
@@ -284,6 +303,24 @@ Anova(mod8, type = "III")
 #run model comparisons 
 anova(mod5, mod8) 
 ## mod 5 is significantly better - lower AIC score 
+
+## run mod5 without spatial correlation correction 
+mod5_2 <- glmmTMB(attacks ~ species*treatment + (1|field.site) + (1|field.day), 
+                data = mimic, ziformula=~1, family=poisson) 
+summary(mod5_2)
+Anova(mod5_2, type = "III") 
+
+## run mod8 without spatial correlation correction 
+mod8_2 <- glmmTMB(attacks ~ species*treatment + (1|field.day), 
+                data = mimic, ziformula=~1, family=poisson) 
+summary(mod8_2)
+Anova(mod8_2, type = "III") 
+
+#run model comparisons 
+anova(mod5, mod8, mod5_2, mod8_2) 
+## mod 5 is significantly better - lower AIC score 
+
+anova(mod5, mod5_2) 
 ```
 
 ###Check residuals 
