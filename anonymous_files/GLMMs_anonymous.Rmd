@@ -342,6 +342,9 @@ EMM2 <- emmeans(mod5,  pairwise ~ species|treatment)
 pairs(EMM2)
 pairs(EMM2, adjust = "bonferroni")
 
+EMM3 <- emmeans(mod5_2,  pairwise ~ species|treatment)
+pairs(EMM3)
+pairs(EMM3, adjust = "bonferroni")
 ```
 
 #Chi squared analysis for synchronous treatment 

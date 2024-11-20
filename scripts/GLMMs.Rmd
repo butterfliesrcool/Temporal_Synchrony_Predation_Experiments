@@ -270,7 +270,6 @@ lat_long <- subset(map, select = c(site, latitude, longitude) )
 colnames(lat_long) <- c("field.site", "latitude", "longitude")
 head(lat_long)
 mimic <- merge(mimic, lat_long, by="field.site", all.x = TRUE)
-
 ```
 
 ```{r testing  phase models}
@@ -325,7 +324,6 @@ anova(mod5, mod8, mod5_2, mod8_2)
 ## mod 5 is significantly better - lower AIC score 
 
 anova(mod5, mod5_2) 
-
 ```
 
 ###Check residuals 
@@ -347,6 +345,9 @@ EMM2 <- emmeans(mod5,  pairwise ~ species|treatment)
 pairs(EMM2)
 pairs(EMM2, adjust = "bonferroni")
 
+EMM3 <- emmeans(mod5_2,  pairwise ~ species|treatment)
+pairs(EMM3)
+pairs(EMM3, adjust = "bonferroni")
 ```
 
 
