@@ -282,6 +282,8 @@ mimic$longitude <- as.vector(abs(mimic$longitude)) #absolute value of longitude.
 mimic$pos <- numFactor(mimic$longitude, mimic$latitude)
 mimic$group <- factor(rep(1, nrow(mimic), times = 1))
 
+pp = 0 | mimic$group
+
 #all random effects 
 mod5 <- glmmTMB(attacks ~ species*treatment + (1|field.site) + (1|field.day) + 
                   exp(pos + 0 | group), 

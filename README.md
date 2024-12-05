@@ -1,11 +1,12 @@
-# Temporal_Synchrony_Predation_Experiments
-Data and code associated with temporal synchrony predation experiments 
+# Is temporal synchrony necessary for effective Batesian mimicry?
 
 Corresponding authors: Abigial E. Robinson (aer13@bu.edu), Dr. Sean Mullen (smullen@bu.edu)
 
-Abstract: Batesian mimicry occurs when palatable mimics gain protection from predators by evolving a phenotypic resemblance to an aposematic model species. While common in nature, the mechanisms maintaining mimicry are not fully understood. Patterns of temporal synchrony (i.e., temporal co-occurrence) and model first occurrence have been observed in several mimicry systems, but the hypothesis that predator foraging decisions can drive the evolution of prey phenology has not been experimentally tested. Here, using phenotypically accurate butterfly replicas we measured predation rates on the chemically defended model species Battus philenor and its imperfect Batesian mimic Limenitis arthemis astyanax under four different phenology conditions to understand the importance of temporal synchrony and model first occurrence in mimicry complexes. We predicted that protection for mimics would increase when predators learned to avoid the model’s aposematic signal right before encountering the mimic, and that this learned avoidance would break down over time in the absence of the model. Surprisingly, we found that asynchronous model first occurrence, even on short time scales, did not provide increased protection for mimics. Mimics were only protected under conditions of temporal synchrony, suggesting that predators rely on current information, not previously learned information, when making foraging decisions.  
+*Abstract:* Batesian mimicry occurs when palatable mimics gain protection from predators by evolving a phenotypic resemblance to an aposematic model species. While common in nature, the mechanisms maintaining mimicry are not fully understood. Patterns of temporal synchrony (i.e., temporal co-occurrence) and model first occurrence have been observed in several mimicry systems, but the hypothesis that predator foraging decisions can drive the evolution of prey phenology has not been experimentally tested. Here, using phenotypically accurate butterfly replicas we measured predation rates on the chemically defended model species Battus philenor and its imperfect Batesian mimic Limenitis arthemis astyanax under four different phenology conditions to understand the importance of temporal synchrony and model first occurrence in mimicry complexes. We predicted that protection for mimics increases when predators learn to avoid the models' aposematic signal right before encountering the mimic, and that learned avoidance breaks down over time in the model's absence. Surprisingly, we found that asynchronous model first occurrence, even on short time scales, did not provide increased protection for mimics. Mimics were only protected under conditions of temporal synchrony, suggesting that predators rely on current information, not previously learned information, when making foraging decisions.   
 
-R Version and Package Version Information 
+
+
+*R Version and Package Version Information*
 $R.version.string
 [1] "R version 4.4.1 (2024-06-14)"
 

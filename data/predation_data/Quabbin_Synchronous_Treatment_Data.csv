@@ -1,4 +1,4 @@
-﻿treatment,experiment.day,field.site,species,attacks,field.day
+treatment,experiment.day,field.site,species,attacks,field.day
 zero,1,61,limenitis,0,1
 zero,1,62,limenitis,0,1
 zero,1,63,limenitis,0,1
@@ -239,4 +239,3 @@ zero,4,77,battus,0,7
 zero,4,78,battus,0,7
 zero,4,79,battus,0,7
 zero,4,80,battus,0,7
-,,,,,
