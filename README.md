@@ -48,7 +48,7 @@ species: facsimile species; the model species *Battus philenor* (battus) or the 
 attacks: number of facsimiles attacked in each site (count data)\
 field.day: numeric value representing the calendar date corresponding to data collection during our 12-day experiment
 
-**Quabbin_Testing_Phase_Data.csv:** data on predator attacks during testing phase of predation experiment\ 
+**Quabbin_Testing_Phase_Data.csv:** data on predator attacks during testing phase of predation experiment 
 treatment: specifies experimental treatment; simultaneous treatment (zero), one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)\
 experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field\
 field.site: field site number (1-80)\
