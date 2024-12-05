@@ -20,23 +20,23 @@ time: date (yyyy-mm-dd) and time (00:00:00) that each coordinate measurement was
 
 **Limenitis_Facsimile_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)\
 wavelength: wavelength (NM) associated with each reflectance measurement\
-fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 through fac_10
 
 **Limenitis_Real_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings\
 wavelength: wavelength (NM) associated with each reflectance measurement\
-real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10
+real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 through real_10
 
 **Limenitis_ Facsimile_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)\
 wavelength: wavelength (NM) associated with each reflectance measurement\
-fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 through fac_10
 
 **Limenitis_Real_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings\
 wavelength: wavelength (NM) associated with each reflectance measurement\
-real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10
+real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 through real_10
 
 **Battus_Facsimile_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Battus philenor* facsimiles (i.e., fake butterfly models)\
 wavelength: wavelength (NM) associated with each reflectance measurement\
-fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 through fac_10
 
 #### **Predation Data:**
 
