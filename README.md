@@ -8,64 +8,66 @@
 
 ### **DATA FILES**
 
-**Quabbin_GIS_Data.csv:** latitude and longitude coordinates for all field sites in the Quabbin Reservoir, MA, USA. Coordinates were collected using Garmin® eTrex 10 and 22x GPS units. 
-experiment: experimental treatment that was conducted in that field site. Simultaneous treatment (sim), one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four) 
-site: field site number (1-80) 
-start_or_end: “start” indicates that the GPS coordinates are associated with the start of a field site, while “end” indicates the end of a field site 
-latitude: latitude coordinate of field site 
-longitude: longitude coordinate of field site 
-time: date (yyyy-mm-dd) and time (00:00:00) that each coordinate measurement was taken 
+**Quabbin_GIS_Data.csv:** latitude and longitude coordinates for all field sites in the Quabbin Reservoir, MA, USA. Coordinates were collected using Garmin® eTrex 10 and 22x GPS units. \
+experiment: experimental treatment that was conducted in that field site. Simultaneous treatment (sim), one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)\
+site: field site number (1-80) \
+start_or_end: “start” indicates that the GPS coordinates are associated with the start of a field site, while “end” indicates the end of a field site\
+latitude: latitude coordinate of field site \
+longitude: longitude coordinate of field site \
+time: date (yyyy-mm-dd) and time (00:00:00) that each coordinate measurement was taken \
 
 #### **Spectral Reflectance Data:**
 
-**Limenitis_Facsimile_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)
-wavelength: wavelength (NM) associated with each reflectance measurement 
-fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10
+**Limenitis_Facsimile_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)\
+wavelength: wavelength (NM) associated with each reflectance measurement \
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10\
 
-**Limenitis_Real_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings 
-wavelength: wavelength (NM) associated with each reflectance measurement 
-real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10
+**Limenitis_Real_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings \
+wavelength: wavelength (NM) associated with each reflectance measurement \
+real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10\
 
-**Limenitis_ Facsimile_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)
-wavelength: wavelength (NM) associated with each reflectance measurement 
-fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10
+**Limenitis_ Facsimile_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* facsimiles (i.e., fake butterfly models)\
+wavelength: wavelength (NM) associated with each reflectance measurement \
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10\
 
-**Limenitis_Real_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings 
-wavelength: wavelength (NM) associated with each reflectance measurement 
-real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10
+**Limenitis_Real_FW_Black.csv:** spectral reflectance measurements of the black forewing (FW) color patch from 10 *Limenitis arthemis astyanax* real butterfly wings \
+wavelength: wavelength (NM) associated with each reflectance measurement \
+real_SampleNumber: columns show reflectance measurements of 10 samples labeled real_1 – real_10 \
 
 **Battus_Facsimile_HW_Blue.csv:** spectral reflectance measurements of the blue hindwing (HW) color patch from 10 *Battus philenor* facsimiles (i.e., fake butterfly models)
+wavelength: wavelength (NM) associated with each reflectance measurement \
+fac_SampleNumber: columns show reflectance measurements of 10 samples labeled fac_1 – fac_10\
 
 #### **Predation Data:**
 
-**Quabbin_Training_Phase_Data.csv:** data on predator attacks during training phase of predation experiment 
-transect: transects that were associated with each experimental treatment; one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)
-experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field 
-field.site: field site number (1-60)
-species: facsimile species; the model species *Battus philenor* (battus) or the control *Junonia coena* (junonia) 
-attacks: number of facsimiles attacked in each site (count data)
-field.day: numeric value representing the calendar date corresponding to data collection during our 12-day experiment 
+**Quabbin_Training_Phase_Data.csv:** data on predator attacks during training phase of predation experiment\
+transect: transects that were associated with each experimental treatment; one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)\
+experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field\
+field.site: field site number (1-60)\
+species: facsimile species; the model species *Battus philenor* (battus) or the control *Junonia coena* (junonia)\
+attacks: number of facsimiles attacked in each site (count data)\
+field.day: numeric value representing the calendar date corresponding to data collection during our 12-day experiment\
 
-**Quabbin_Testing_Phase_Data.csv:** data on predator attacks during testing phase of predation experiment 
-treatment: specifies experimental treatment; simultaneous treatment (zero), one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)
-experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field 
-field.site: field site number (1-80)
-species: facsimile species; the model species *Battus philenor* (battus), the mimic species *Limenitis arthemis astyanax* (limenitis) or the control *Junonia coena* (junonia) 
-attacks: number of facsimiles attacked in each site (count data)
-field.day: numeric value representing the calendar date corresponding to data collection during our 7-day testing phase experiment 
+**Quabbin_Testing_Phase_Data.csv:** data on predator attacks during testing phase of predation experiment\ 
+treatment: specifies experimental treatment; simultaneous treatment (zero), one-week time delay treatment (one), two-week time delay treatment (two), four-week time delay treatment (four)\
+experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field \
+field.site: field site number (1-80)\
+species: facsimile species; the model species *Battus philenor* (battus), the mimic species *Limenitis arthemis astyanax* (limenitis) or the control *Junonia coena* (junonia) \
+attacks: number of facsimiles attacked in each site (count data)\
+field.day: numeric value representing the calendar date corresponding to data collection during our 7-day testing phase experiment \
 
-**Quabbin_Synchronous_Treatment_Data.csv:** data on predator attacks on model, mimic, and control facsimiles during the synchronous treatment of the testing phase 
-treatment: specifies simultaneous treatment (zero)
-experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field 
-field.site: field site number (61-80)
-species: facsimile species; the model species *Battus philenor* (battus), the mimic species *Limenitis arthemis astyanax* (limenitis) or the control *Junonia coena* (junonia) 
-attacks: number of facsimiles attacked in each site (count data)
-field.day: numeric value representing the calendar date corresponding to data collection during our 7-day testing phase experiment 
+**Quabbin_Synchronous_Treatment_Data.csv:** data on predator attacks on model, mimic, and control facsimiles during the synchronous treatment of the testing phase \
+treatment: specifies simultaneous treatment (zero)\
+experiment.day: integer (1-4) representing the number of days a given facsimile had been in the field \
+field.site: field site number (61-80)\
+species: facsimile species; the model species *Battus philenor* (battus), the mimic species *Limenitis arthemis astyanax* (limenitis) or the control *Junonia coena* (junonia) \
+attacks: number of facsimiles attacked in each site (count data)\
+field.day: numeric value representing the calendar date corresponding to data collection during our 7-day testing phase experiment \
 
 
 ### **CODE SCRIPTS**
 
-**PAVO.Rmd:** this script contains annotated code for the pavo analysis and calculations of JND scores. This script uses all spectral reflectance data files described above. Data for the spectral reflectance of the blue hindwing (HW) patches of *Battus philenor* real butterfly wings were taken from: 
+**PAVO.Rmd:** this script contains annotated code for the pavo analysis and calculations of JND scores. This script uses all spectral reflectance data files described above. Data for the spectral reflectance of the blue hindwing (HW) patches of *Battus philenor* real butterfly wings were taken from: \
 
 Stavenga, D.G., Leertouwer, H.L. & Wilts, B.D. The colouration toolkit of the Pipevine Swallowtail butterfly, Battus philenor: thin films, papiliochromes, and melanin. J Comp Physiol A 200, 547–561 (2014). https://doi.org/10.1007/s00359-014-0901-7
 
