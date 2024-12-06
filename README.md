@@ -73,7 +73,7 @@ Stavenga, D.G., Leertouwer, H.L. & Wilts, B.D. The colouration toolkit of the Pi
 
 **GLMMS.Rmd:** this script contains annotated code for training and testing phase generalized linear mixed models (GLMMs). This script uses all predaton data files described above 
 
-**ebird_analysis.Rmd:** This  script contains code for all analyses of avain predator community dynamics and all associated figures. This script uses data downloaded from ebird.org. *eBird* is an open access data souce, and data used in this analysis can be downloaded directly from *eBird* using this link:  https://support.ebird.org/en/support/solutions/articles/48000838205-download-ebird-data#anchorEBD
+**ebird_analysis.Rmd:** This  script contains code for all analyses of avian predator community dynamics and all associated figures. This script uses data downloaded from ebird.org; The datasets included here do not contain any information taken directly from *eBird*. *eBird* is an open access data source, and data used in this analysis can be downloaded directly from *eBird* using this link:  https://support.ebird.org/en/support/solutions/articles/48000838205-download-ebird-data#anchorEBD
 
 To replicate this analysis, download the *eBird* Basic Dataset (EBD) records from all states in the Northeastern USA (Maine, New Hampshire, Vermont, Massachusetts, Rhode Island, Connecticut, New York, New Jersey, Pennsylvania) for all species and all years
 
